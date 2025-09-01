@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bluetooth Code Word Receiver</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        #status { margin-bottom: 1em; }
+    </style>
+</head>
+<body>
+    <h1>Bluetooth Code Word Receiver</h1>
+    <div id="status">Status: Not connected</div>
+    <button id="connect">Connect Bluetooth Device</button>
+    <div>
+        <h3>Received Code Word:</h3>
+        <div id="received"></div>
+    </div>
+    <script>
+        let bluetoothDevice;
+        let codewordCharacteristic;
+        const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
+        const CHARACTERISTIC_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+
+        document.getElementById('connect').onclick = async function() {
+            try {
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }]
+                });
+                const server = await bluetoothDevice.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                codewordCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+                await codewordCharacteristic.startNotifications();
+                codewordCharacteristic.addEventListener('characteristicvaluechanged', event => {
+                    const value = event.target.value;
+                    const decoder = new TextDecoder('utf-8');
+                    const receivedWord = decoder.decode(value);
+                    document.getElementById('received').textContent = receivedWord;
+                });
+
+                document.getElementById('status').textContent = 'Status: Connected, waiting for code word...';
+            } catch (error) {
+                document.getElementById('status').textContent = 'Status: ' + error;
+            }
+        };
+    </script>
+</body>
+</html>
