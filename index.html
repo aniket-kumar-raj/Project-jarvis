@@ -2,36 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Bluetooth Code Word Sender/Receiver</title>
+    <title>Bluetooth Code Word Sender</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 2em; }
         #status { margin-bottom: 1em; }
-        .section { margin-bottom: 2em; }
-        label { margin-right: 1em; }
     </style>
 </head>
 <body>
-    <h1>Bluetooth Code Word Sender/Receiver</h1>
+    <h1>Bluetooth Code Word Sender</h1>
     <div id="status">Status: Not connected</div>
-    <div class="section">
-        <button id="connect">Connect Bluetooth Device</button>
-    </div>
-    <div class="section">
-        <label for="codeword">Send Code Word:</label>
+    <button id="connect">Connect Bluetooth Device</button>
+    <div>
         <input type="text" id="codeword" placeholder="Enter code word">
         <button id="send">Send</button>
-    </div>
-    <div class="section">
-        <h3>Received Code Word:</h3>
-        <div id="received"></div>
     </div>
     <script>
         let bluetoothDevice;
         let codewordCharacteristic;
-
-        // UUIDs for service and characteristic (replace with your device's UUIDs if needed)
-        const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb'; // Generic UART service
-        const CHARACTERISTIC_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb'; // UART RX/TX
+        const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
+        const CHARACTERISTIC_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
 
         document.getElementById('connect').onclick = async function() {
             try {
@@ -41,16 +30,6 @@
                 const server = await bluetoothDevice.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 codewordCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-
-                // Listen for incoming code words
-                await codewordCharacteristic.startNotifications();
-                codewordCharacteristic.addEventListener('characteristicvaluechanged', event => {
-                    const value = event.target.value;
-                    const decoder = new TextDecoder('utf-8');
-                    const receivedWord = decoder.decode(value);
-                    document.getElementById('received').textContent = receivedWord;
-                });
-
                 document.getElementById('status').textContent = 'Status: Connected';
             } catch (error) {
                 document.getElementById('status').textContent = 'Status: ' + error;
