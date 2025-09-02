@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Palm Detector</title>
+  <!-- TensorFlow.js libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <!-- Handpose model -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+</head>
+<body>
+  <h2>Palm Detector</h2>
+  <video id="video" width="640" height="480" autoplay></video>
+  <canvas id="output" width="640" height="480"></canvas>
+
+  <script>
+    async function setupCamera() {
+      const video = document.getElementById('video');
+      const stream = await navigator.mediaDevices.getUserMedia({video: true});
+      video.srcObject = stream;
+      return new Promise(resolve => {
+        video.onloadedmetadata = () => { resolve(video); };
+      });
+    }
+
+    async function main() {
+      const video = await setupCamera();
+      video.play();
+
+      const model = await handpose.load();
+      console.log("Handpose model ready");
+
+      const canvas = document.getElementById("output");
+      const ctx = canvas.getContext("2d");
+
+      async function detect() {
+        ctx.drawImage(video, 0, 0, 640, 480);
+
+        const predictions = await model.estimateHands(video);
+        if (predictions.length > 0) {
+          const landmarks = predictions[0].landmarks;
+
+          // Draw landmarks
+          for (let i = 0; i < landmarks.length; i++) {
+            const [x, y] = landmarks[i];
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = "lime";
+            ctx.fill();
+          }
+
+          // Simple palm detection:
+          let fingerTips = [8, 12, 16, 20];
+          let openPalm = fingerTips.every(tip => landmarks[tip][1] < landmarks[tip - 2][1]);
+
+          if (openPalm) {
+            ctx.fillStyle = "red";
+            ctx.font = "30px Arial";
+            ctx.fillText("Palm Detected!", 50, 50);
+          }
+        }
+        requestAnimationFrame(detect);
+      }
+      detect();
+    }
+    main();
+  </script>
+</body>
+</html>
