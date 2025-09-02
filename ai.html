@@ -2,162 +2,116 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Palm Detection with Animation</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+  <title>MediaPipe Palm Detection</title>
   <style>
-    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #111; }
-    canvas { position: absolute; top: 0; left: 0; }
-    video { display: none; }
+    body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #111;
+      color: white;
+      height: 100vh;
+    }
+    video {
+      transform: scaleX(-1); /* mirror for selfie mode */
+      width: 480px;
+      border-radius: 12px;
+    }
+    #canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    .anim {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 5px solid cyan;
+      border-top: 5px solid transparent;
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+    .tick {
+      font-size: 80px;
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: lime;
+    }
+    @keyframes spin {
+      0% { transform: translate(-50%, -50%) rotate(0deg); }
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
   </style>
 </head>
 <body>
+
   <video id="video" autoplay playsinline></video>
-  <canvas id="canvas"></canvas>
+  <div class="anim" id="anim"></div>
+  <div class="tick" id="tick">✔</div>
+
+  <!-- MediaPipe libs -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
   <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+    const videoElement = document.getElementById('video');
+    const anim = document.getElementById('anim');
+    const tick = document.getElementById('tick');
+    let timer = null;
 
-    let model, palmDetected = false, detectionStart = null, showTick = false;
-    let rotation = 0;
-    let lastDetection = null;
-    let lastPrediction = [];
-
-    // Animation effect parameters
-    let pulse = 0;
-    let pulseIncreasing = true;
-
-    async function setupCamera() {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: "environment" }, width: 640, height: 480 }
-      });
-      video.srcObject = stream;
-      return new Promise(resolve => {
-        video.onloadedmetadata = () => resolve(video);
-      });
-    }
-
-    // Only run hand detection every N ms to reduce lag
-    const DETECTION_INTERVAL = 100; // ms
-
-    async function detectHands() {
-      const now = Date.now();
-      if (!lastDetection || now - lastDetection > DETECTION_INTERVAL) {
-        lastPrediction = await model.estimateHands(video, true);
-        lastDetection = now;
+    // Setup MediaPipe Hands
+    const hands = new Hands({
+      locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
       }
+    });
 
-      if (lastPrediction.length > 0) {
-        // Palm detected
-        if (!palmDetected) {
-          palmDetected = true;
-          detectionStart = Date.now();
-          showTick = false;
-        } else if (Date.now() - detectionStart > 2000) {
-          showTick = true;
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7
+    });
+
+    hands.onResults((results) => {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        if (!timer) {
+          anim.style.display = "block";
+          tick.style.display = "none";
+          timer = setTimeout(() => {
+            anim.style.display = "none";
+            tick.style.display = "block";
+            setTimeout(() => {
+              tick.style.display = "none";
+              timer = null;
+            }, 1000);
+          }, 2000);
         }
       } else {
-        // No palm, reset
-        palmDetected = false;
-        detectionStart = null;
-        showTick = false;
+        anim.style.display = "none";
       }
-    }
+    });
 
-    function drawAnimation() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      if (palmDetected) {
-        const x = canvas.width / 2;
-        const y = canvas.height / 2;
-
-        // Pulse effect for circle radius
-        if (pulseIncreasing) {
-          pulse += 1;
-          if (pulse > 20) pulseIncreasing = false;
-        } else {
-          pulse -= 1;
-          if (pulse < 0) pulseIncreasing = true;
-        }
-
-        // Rotating glowing circles
-        rotation += 0.08; // Faster rotation
-
-        // Outer glowing circle
-        ctx.save();
-        ctx.shadowColor = "cyan";
-        ctx.shadowBlur = 30;
-        ctx.beginPath();
-        ctx.arc(x, y, 80 + pulse, 0, Math.PI * 2);
-        ctx.strokeStyle = "cyan";
-        ctx.lineWidth = 4;
-        ctx.stroke();
-        ctx.restore();
-
-        // Animated arc
-        ctx.save();
-        ctx.shadowColor = "lime";
-        ctx.shadowBlur = 30;
-        ctx.beginPath();
-        ctx.arc(x, y, 80 + pulse, rotation, rotation + Math.PI / 1.5);
-        ctx.strokeStyle = "lime";
-        ctx.lineWidth = 8;
-        ctx.stroke();
-        ctx.restore();
-
-        // Particles around detected palm (simple sparkle)
-        for (let i = 0; i < 12; i++) {
-          const angle = rotation + (i * Math.PI / 6);
-          const px = x + Math.cos(angle) * (100 + pulse);
-          const py = y + Math.sin(angle) * (100 + pulse);
-          ctx.save();
-          ctx.globalAlpha = 0.5 + Math.sin(rotation + i) * 0.5;
-          ctx.beginPath();
-          ctx.arc(px, py, 6, 0, Math.PI * 2);
-          ctx.fillStyle = "cyan";
-          ctx.shadowColor = "white";
-          ctx.shadowBlur = 10;
-          ctx.fill();
-          ctx.restore();
-        }
-
-        // Show tick after 2 seconds
-        if (showTick) {
-          ctx.save();
-          ctx.font = "80px Arial";
-          ctx.fillStyle = "lime";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.shadowColor = "lime";
-          ctx.shadowBlur = 40;
-          ctx.fillText("✔", x, y);
-          ctx.restore();
-        }
-      }
-    }
-
-    async function main() {
-      await setupCamera();
-      video.play();
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      model = await handpose.load();
-
-      // Run the animation loop at high FPS, but palm detection at a slower pace
-      async function loop() {
-        await detectHands();
-        drawAnimation();
-        requestAnimationFrame(loop);
-      }
-      loop();
-    }
-
-    main();
+    // Camera setup (default: front camera, change facingMode for back)
+    const camera = new Camera(videoElement, {
+      onFrame: async () => {
+        await hands.send({image: videoElement});
+      },
+      width: 480,
+      height: 360
+    });
+    camera.start();
   </script>
+
 </body>
 </html>
