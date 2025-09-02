@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Palm Detector</title>
-  <!-- TensorFlow.js libraries -->
+  <title>Fast Palm Detector</title>
+  <!-- TensorFlow.js -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
@@ -10,60 +10,41 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
 </head>
 <body>
-  <h2>Palm Detector</h2>
-  <video id="video" width="640" height="480" autoplay></video>
-  <canvas id="output" width="640" height="480"></canvas>
+  <h2 id="status">Palm: Not Detected ❌</h2>
+  <video id="video" width="320" height="240" autoplay style="display:none"></video>
 
   <script>
     async function setupCamera() {
       const video = document.getElementById('video');
-      const stream = await navigator.mediaDevices.getUserMedia({video: true});
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       video.srcObject = stream;
       return new Promise(resolve => {
-        video.onloadedmetadata = () => { resolve(video); };
+        video.onloadedmetadata = () => resolve(video);
       });
     }
 
     async function main() {
       const video = await setupCamera();
-      video.play();
+      await video.play();
 
       const model = await handpose.load();
-      console.log("Handpose model ready");
+      console.log("Handpose ready");
 
-      const canvas = document.getElementById("output");
-      const ctx = canvas.getContext("2d");
+      const status = document.getElementById("status");
 
       async function detect() {
-        ctx.drawImage(video, 0, 0, 640, 480);
-
         const predictions = await model.estimateHands(video);
         if (predictions.length > 0) {
-          const landmarks = predictions[0].landmarks;
-
-          // Draw landmarks
-          for (let i = 0; i < landmarks.length; i++) {
-            const [x, y] = landmarks[i];
-            ctx.beginPath();
-            ctx.arc(x, y, 5, 0, 2 * Math.PI);
-            ctx.fillStyle = "lime";
-            ctx.fill();
-          }
-
-          // Simple palm detection:
-          let fingerTips = [8, 12, 16, 20];
-          let openPalm = fingerTips.every(tip => landmarks[tip][1] < landmarks[tip - 2][1]);
-
-          if (openPalm) {
-            ctx.fillStyle = "red";
-            ctx.font = "30px Arial";
-            ctx.fillText("Palm Detected!", 50, 50);
-          }
+          status.innerText = "Palm: Detected ✅";
+        } else {
+          status.innerText = "Palm: Not Detected ❌";
         }
-        requestAnimationFrame(detect);
+        requestAnimationFrame(detect); // keeps it under ~60 fps
       }
+
       detect();
     }
+
     main();
   </script>
 </body>
