@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Fast Palm Detector</title>
+  <title>Fast Palm Detector (Wide Camera)</title>
   <!-- TensorFlow.js -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
@@ -11,12 +11,18 @@
 </head>
 <body>
   <h2 id="status">Palm: Not Detected ❌</h2>
-  <video id="video" width="320" height="240" autoplay style="display:none"></video>
+  <video id="video" autoplay playsinline style="display:none"></video>
 
   <script>
     async function setupCamera() {
       const video = document.getElementById('video');
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { exact: "user" }, // back camera (wider angle)
+          width: { ideal: 1280 }, // request higher resolution
+          height: { ideal: 720 }
+        }
+      });
       video.srcObject = stream;
       return new Promise(resolve => {
         video.onloadedmetadata = () => resolve(video);
@@ -39,7 +45,7 @@
         } else {
           status.innerText = "Palm: Not Detected ❌";
         }
-        requestAnimationFrame(detect); // keeps it under ~60 fps
+        requestAnimationFrame(detect); // keeps ~60fps responsiveness
       }
 
       detect();
