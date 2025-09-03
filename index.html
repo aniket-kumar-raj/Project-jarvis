@@ -2,55 +2,157 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Bluetooth Palm Sender</title>
+  <title>Palm Detection Sender</title>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    video { display: none; }
+    #viewer { margin-top: 20px; border: 3px solid cyan; border-radius: 12px; }
+  </style>
 </head>
 <body>
-  <h2>Image Viewer + Palm Detection</h2>
-  <img id="viewer" src="pic1.jpg" width="300"><br><br>
+  <h2>Palm Detection + Bluetooth Sender</h2>
+  <video id="video" playsinline></video>
+  <canvas id="canvas"></canvas>
+  
+  <img id="viewer" src="pic1.jpg" width="300">
+  <br>
   <button onclick="nextImage()">Next Image</button>
   <button onclick="connectBluetooth()">🔗 Connect Bluetooth</button>
 
   <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    let palmDetected = false, detectionStart = null, showTick = false;
+    let rotation = 0;
+
+    // Images + Codes
     let images = ["pic1.jpg", "pic2.jpg", "pic3.jpg"];
-    let codes = ["pic1", "pic2", "pic3"];
+    let codes  = ["pic1", "pic2", "pic3"];
     let index = 0;
-    let device, server, service, characteristic;
 
     function nextImage() {
       index = (index + 1) % images.length;
       document.getElementById("viewer").src = images[index];
     }
 
+    // Bluetooth Variables
+    let device, server, service, characteristic;
+
     async function connectBluetooth() {
       try {
         device = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
-          optionalServices: ['12345678-1234-5678-1234-56789abcdef0'] // custom UUID
+          optionalServices: ['12345678-1234-5678-1234-56789abcdef0']
         });
         server = await device.gatt.connect();
         service = await server.getPrimaryService('12345678-1234-5678-1234-56789abcdef0');
         characteristic = await service.getCharacteristic('12345678-1234-5678-1234-56789abcdef1');
-        alert("Connected!");
+        alert("Bluetooth Connected!");
       } catch (e) {
-        alert("Error: " + e);
+        alert("Bluetooth Error: " + e);
       }
     }
 
     async function sendImageCode() {
-      if (!characteristic) return alert("Not connected!");
+      if (!characteristic) return;
       let code = codes[index];
       let encoder = new TextEncoder();
       await characteristic.writeValue(encoder.encode(code));
-      alert("Sent: " + code);
+      console.log("Sent:", code);
     }
 
-    // 👉 Replace this with palm detection trigger
-    setInterval(() => {
-      // Simulate palm detected for 2 sec
-      if (Math.random() > 0.95) {
-        sendImageCode();
+    // MediaPipe Hands setup
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+    hands.setOptions({
+      maxNumHands: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7
+    });
+
+    hands.onResults(results => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        // Palm detected
+        if (!palmDetected) {
+          palmDetected = true;
+          detectionStart = Date.now();
+          showTick = false;
+        } else if (Date.now() - detectionStart > 2000 && !showTick) {
+          showTick = true;
+          sendImageCode(); // send via Bluetooth
+        }
+      } else {
+        // Reset if palm disappears
+        palmDetected = false;
+        detectionStart = null;
+        showTick = false;
       }
-    }, 2000);
+
+      drawAnimation();
+    });
+
+    function drawAnimation() {
+      if (palmDetected) {
+        const x = canvas.width / 2;
+        const y = canvas.height / 2;
+
+        // Rotating neon ring
+        rotation += 0.05;
+        ctx.beginPath();
+        ctx.arc(x, y, 100, 0, Math.PI * 2);
+        ctx.strokeStyle = "cyan";
+        ctx.lineWidth = 5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(x, y, 100, rotation, rotation + Math.PI / 2);
+        ctx.strokeStyle = "magenta";
+        ctx.lineWidth = 8;
+        ctx.stroke();
+
+        // Tick after 2 sec
+        if (showTick) {
+          ctx.font = "100px Arial";
+          ctx.fillStyle = "lime";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("✔", x, y);
+        }
+      }
+    }
+
+    // Camera setup
+    const camera = new Camera(video, {
+      onFrame: async () => {
+        await hands.send({image: video});
+      },
+      width: 640,
+      height: 480
+    });
+    camera.start();
   </script>
 </body>
 </html>
