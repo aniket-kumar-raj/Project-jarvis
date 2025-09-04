@@ -2,48 +2,44 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Palm Gallery Sender</title>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <title>Gallery Palm Control</title>
   <style>
-    body, html {
-      margin: 0; padding: 0; height: 100%; overflow: hidden;
-      background: #000; color: white;
-      font-family: Arial, sans-serif;
+    body { margin: 0; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+    #gallery { position: relative; width: 100%; height: 100%; display: flex; overflow: hidden; }
+    .slide {
+      min-width: 100%; height: 100%;
+      display: flex; justify-content: center; align-items: center;
+      transition: transform 0.6s ease-in-out;
     }
-    #gallery {
-      position: relative;
-      width: 100%; height: 100%;
-      display: flex; align-items: center; justify-content: center;
-      overflow: hidden;
+    .slide img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+    #animation {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 120px; height: 120px;
+      border: 6px solid rgba(255,255,255,0.2);
+      border-top: 6px solid #4caf50;
+      border-radius: 50%;
+      animation: spin 2s linear infinite;
+      display: none;
     }
-    #gallery img {
-      position: absolute;
-      width: 100%; height: 100%;
-      object-fit: contain;
-      opacity: 0; transition: opacity 0.6s ease;
+    #tick {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 64px; color: #4caf50; display: none;
     }
-    #gallery img.active { opacity: 1; }
-    #canvas {
-      position: absolute; top: 0; left: 0;
-      width: 100%; height: 100%;
-      pointer-events: none;
-    }
+    @keyframes spin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
   </style>
 </head>
 <body>
-  <div id="gallery">
-    <!-- demo images -->
-    <img src="https://picsum.photos/id/1011/800/600" class="active" data-code="pic1">
-    <img src="https://picsum.photos/id/1015/800/600" data-code="pic2">
-    <img src="https://picsum.photos/id/1025/800/600" data-code="pic3">
-    <canvas id="canvas"></canvas>
-  </div>
+  <div id="gallery"></div>
+  <div id="animation"></div>
+  <div id="tick">✔</div>
 
-  <video id="video" autoplay playsinline style="display:none"></video>
+  <!-- Camera -->
+  <video id="camera" autoplay playsinline style="display:none;"></video>
 
+  <!-- Firebase -->
   <script type="module">
-    // ✅ Firebase Modular SDK
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
     import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
@@ -55,109 +51,81 @@
       messagingSenderId: "489774215647",
       appId: "1:489774215647:web:9f4c6d2b48d6203ea6d46a",
       measurementId: "G-J40BFX6RET",
-      databaseURL: "https://project-jarvis-creators-default-rtdb.firebaseio.com"
+      databaseURL: "https://project-jarvis-creators-default-rtdb.firebaseio.com/"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // 🔹 Gallery logic
-    const images = document.querySelectorAll("#gallery img");
+    // Gallery images
+    const images = [
+      { code: "pic1", src: "https://picsum.photos/id/1015/800/600" },
+      { code: "pic2", src: "https://picsum.photos/id/1016/800/600" },
+      { code: "pic3", src: "https://picsum.photos/id/1018/800/600" }
+    ];
+
     let currentIndex = 0;
-    function showImage(i) {
-      images.forEach(img => img.classList.remove("active"));
-      images[i].classList.add("active");
+    const gallery = document.getElementById("gallery");
+    images.forEach(img => {
+      const div = document.createElement("div");
+      div.className = "slide";
+      div.innerHTML = `<img src="${img.src}">`;
+      gallery.appendChild(div);
+    });
+
+    function updateGallery() {
+      gallery.style.transform = `translateX(-${currentIndex * 100}%)`;
     }
-    function nextImage() {
-      currentIndex = (currentIndex + 1) % images.length;
-      showImage(currentIndex);
-    }
-    function prevImage() {
-      currentIndex = (currentIndex - 1 + images.length) % images.length;
-      showImage(currentIndex);
-    }
-    // Swipe gestures
+    updateGallery();
+
+    // Swipe left/right for navigation
     let startX = 0;
-    document.addEventListener("touchstart", e => startX = e.touches[0].clientX);
-    document.addEventListener("touchend", e => {
+    gallery.addEventListener("touchstart", e => startX = e.touches[0].clientX);
+    gallery.addEventListener("touchend", e => {
       let endX = e.changedTouches[0].clientX;
-      if (endX - startX > 50) prevImage();
-      if (startX - endX > 50) nextImage();
-    });
-    // Keyboard
-    document.addEventListener("keydown", e => {
-      if (e.key === "ArrowRight") nextImage();
-      if (e.key === "ArrowLeft") prevImage();
+      if (endX < startX - 50) { currentIndex = Math.min(images.length - 1, currentIndex + 1); }
+      if (endX > startX + 50) { currentIndex = Math.max(0, currentIndex - 1); }
+      updateGallery();
     });
 
-    // 🔹 Mediapipe Hand Detection
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+    // MediaPipe Hands
+    import { Hands } from "https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js";
+    import { Camera } from "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js";
 
-    let palmDetected = false, detectionStart = null, sent = false;
+    const video = document.getElementById("camera");
+    const hands = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.8, minTrackingConfidence: 0.8 });
 
-    function drawAnimation(showTick) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const x = canvas.width / 2;
-      const y = canvas.height / 2;
-      ctx.beginPath();
-      ctx.arc(x, y, 80, 0, Math.PI * 2);
-      ctx.strokeStyle = "cyan";
-      ctx.lineWidth = 4;
-      ctx.stroke();
-      if (showTick) {
-        ctx.font = "80px Arial";
-        ctx.fillStyle = "lime";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("✔", x, y);
-      }
-    }
+    let palmVisibleSince = null;
+    hands.onResults(results => {
+      const palmDetected = results.multiHandLandmarks.length > 0;
+      const animation = document.getElementById("animation");
+      const tick = document.getElementById("tick");
 
-    async function main() {
-      const hands = new Hands({ locateFile: f => 
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` 
-      });
-      hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+      if (palmDetected) {
+        if (!palmVisibleSince) palmVisibleSince = Date.now();
+        const elapsed = Date.now() - palmVisibleSince;
+        animation.style.display = "block";
+        if (elapsed > 2000) {
+          animation.style.display = "none";
+          tick.style.display = "block";
+          setTimeout(() => tick.style.display = "none", 1500);
 
-      hands.onResults(results => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-        if (results.multiHandLandmarks.length > 0) {
-          if (!palmDetected) {
-            palmDetected = true;
-            detectionStart = Date.now();
-            sent = false;
-          } else {
-            const elapsed = Date.now() - detectionStart;
-            if (elapsed > 2000 && !sent) {
-              const code = images[currentIndex].dataset.code;
-              set(ref(db, "palmData"), { code, time: Date.now() });
-              console.log("Sent:", code);
-              sent = true;
-              drawAnimation(true);
-            } else {
-              drawAnimation(false);
-            }
-          }
-        } else {
-          palmDetected = false;
-          detectionStart = null;
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          // Send current photo code to Firebase
+          set(ref(db, "gallery/selected"), images[currentIndex].code);
+          palmVisibleSince = null;
         }
-      });
+      } else {
+        palmVisibleSince = null;
+        animation.style.display = "none";
+      }
+    });
 
-      const camera = new Camera(video, {
-        onFrame: async () => { await hands.send({ image: video }); },
-        width: 640, height: 480
-      });
-      camera.start();
-      canvas.width = 640; canvas.height = 480;
-    }
-
-    main();
+    const camera = new Camera(video, {
+      onFrame: async () => { await hands.send({ image: video }); },
+      width: 640, height: 480
+    });
+    camera.start();
   </script>
 </body>
 </html>
