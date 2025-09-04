@@ -2,157 +2,93 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Palm Detection Sender</title>
+  <title>Palm Sender</title>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
   <style>
-    body {
-      margin: 0;
-      background: #111;
-      color: white;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-    canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-    }
     video { display: none; }
-    #viewer { margin-top: 20px; border: 3px solid cyan; border-radius: 12px; }
+    canvas { position: absolute; top: 0; left: 0; }
+    body { margin: 0; background: #000; }
   </style>
 </head>
 <body>
-  <h2>Palm Detection + Bluetooth Sender</h2>
-  <video id="video" playsinline></video>
+  <video id="video" autoplay playsinline></video>
   <canvas id="canvas"></canvas>
-  
-  <img id="viewer" src="pic1.jpg" width="300">
-  <br>
-  <button onclick="nextImage()">Next Image</button>
-  <button onclick="connectBluetooth()">🔗 Connect Bluetooth</button>
 
-  <script>
+  <script type="module">
+    // ✅ Firebase Modular SDK imports
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+
+    // 🔹 Your Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrZDZ_M_DC97zLxLw4hgxwm_revSjwkMA",
+      authDomain: "project-jarvis-creators.firebaseapp.com",
+      projectId: "project-jarvis-creators",
+      storageBucket: "project-jarvis-creators.firebasestorage.app",
+      messagingSenderId: "489774215647",
+      appId: "1:489774215647:web:9f4c6d2b48d6203ea6d46a",
+      measurementId: "G-J40BFX6RET",
+      databaseURL: "https://project-jarvis-creators-default-rtdb.firebaseio.com" // ⚠️ add this manually
+    };
+
+    // ✅ Init Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // 🔹 Camera + Mediapipe
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
 
-    let palmDetected = false, detectionStart = null, showTick = false;
-    let rotation = 0;
+    let palmDetected = false, detectionStart = null, sent = false;
+    let currentImage = "pic1"; // change this depending on image shown
 
-    // Images + Codes
-    let images = ["pic1.jpg", "pic2.jpg", "pic3.jpg"];
-    let codes  = ["pic1", "pic2", "pic3"];
-    let index = 0;
+    async function main() {
+      const hands = new Hands({ locateFile: (file) => 
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+      hands.setOptions({
+        maxNumHands: 1,
+        minDetectionConfidence: 0.7,
+        minTrackingConfidence: 0.7
+      });
 
-    function nextImage() {
-      index = (index + 1) % images.length;
-      document.getElementById("viewer").src = images[index];
-    }
+      hands.onResults(results => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
-    // Bluetooth Variables
-    let device, server, service, characteristic;
-
-    async function connectBluetooth() {
-      try {
-        device = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: ['12345678-1234-5678-1234-56789abcdef0']
-        });
-        server = await device.gatt.connect();
-        service = await server.getPrimaryService('12345678-1234-5678-1234-56789abcdef0');
-        characteristic = await service.getCharacteristic('12345678-1234-5678-1234-56789abcdef1');
-        alert("Bluetooth Connected!");
-      } catch (e) {
-        alert("Bluetooth Error: " + e);
-      }
-    }
-
-    async function sendImageCode() {
-      if (!characteristic) return;
-      let code = codes[index];
-      let encoder = new TextEncoder();
-      await characteristic.writeValue(encoder.encode(code));
-      console.log("Sent:", code);
-    }
-
-    // MediaPipe Hands setup
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
-    hands.setOptions({
-      maxNumHands: 1,
-      minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.7
-    });
-
-    hands.onResults(results => {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        // Palm detected
-        if (!palmDetected) {
-          palmDetected = true;
-          detectionStart = Date.now();
-          showTick = false;
-        } else if (Date.now() - detectionStart > 2000 && !showTick) {
-          showTick = true;
-          sendImageCode(); // send via Bluetooth
+        if (results.multiHandLandmarks.length > 0) {
+          if (!palmDetected) {
+            palmDetected = true;
+            detectionStart = Date.now();
+            sent = false;
+          } else if (!sent && Date.now() - detectionStart > 2000) {
+            // ✅ Send code to Firebase
+            set(ref(db, "palmData"), {
+              code: currentImage,
+              time: Date.now()
+            });
+            console.log("Sent:", currentImage);
+            sent = true;
+          }
+        } else {
+          palmDetected = false;
+          detectionStart = null;
         }
-      } else {
-        // Reset if palm disappears
-        palmDetected = false;
-        detectionStart = null;
-        showTick = false;
-      }
+      });
 
-      drawAnimation();
-    });
+      const camera = new Camera(video, {
+        onFrame: async () => { await hands.send({ image: video }); },
+        width: 640, height: 480
+      });
+      camera.start();
 
-    function drawAnimation() {
-      if (palmDetected) {
-        const x = canvas.width / 2;
-        const y = canvas.height / 2;
-
-        // Rotating neon ring
-        rotation += 0.05;
-        ctx.beginPath();
-        ctx.arc(x, y, 100, 0, Math.PI * 2);
-        ctx.strokeStyle = "cyan";
-        ctx.lineWidth = 5;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(x, y, 100, rotation, rotation + Math.PI / 2);
-        ctx.strokeStyle = "magenta";
-        ctx.lineWidth = 8;
-        ctx.stroke();
-
-        // Tick after 2 sec
-        if (showTick) {
-          ctx.font = "100px Arial";
-          ctx.fillStyle = "lime";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText("✔", x, y);
-        }
-      }
+      canvas.width = 640;
+      canvas.height = 480;
     }
 
-    // Camera setup
-    const camera = new Camera(video, {
-      onFrame: async () => {
-        await hands.send({image: video});
-      },
-      width: 640,
-      height: 480
-    });
-    camera.start();
+    main();
   </script>
 </body>
 </html>
