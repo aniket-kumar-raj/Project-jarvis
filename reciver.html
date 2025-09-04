@@ -2,11 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Palm Receiver</title>
+  <title>Receiver Gallery</title>
+  <style>
+    body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+    img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
+    #info { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; font-size: 24px; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px; }
+  </style>
 </head>
 <body>
-  <h1>Waiting for palm signal...</h1>
-  <div id="output"></div>
+  <img id="display" src="">
+  <div id="info">Waiting for selection...</div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
@@ -20,18 +25,26 @@
       messagingSenderId: "489774215647",
       appId: "1:489774215647:web:9f4c6d2b48d6203ea6d46a",
       measurementId: "G-J40BFX6RET",
-      databaseURL: "https://project-jarvis-creators-default-rtdb.firebaseio.com"
+      databaseURL: "https://project-jarvis-creators-default-rtdb.firebaseio.com/"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    const output = document.getElementById("output");
+    const mapping = {
+      "pic1": "https://picsum.photos/id/1015/800/600",
+      "pic2": "https://picsum.photos/id/1016/800/600",
+      "pic3": "https://picsum.photos/id/1018/800/600"
+    };
 
-    onValue(ref(db, "palmData"), (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        output.innerText = "Palm Triggered: " + data.code;
+    const img = document.getElementById("display");
+    const info = document.getElementById("info");
+
+    onValue(ref(db, "gallery/selected"), snapshot => {
+      const code = snapshot.val();
+      if (code && mapping[code]) {
+        img.src = mapping[code];
+        info.textContent = `Now showing: ${code}`;
       }
     });
   </script>
