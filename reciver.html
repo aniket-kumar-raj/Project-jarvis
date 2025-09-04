@@ -4,9 +4,31 @@
   <meta charset="UTF-8">
   <title>Receiver Gallery</title>
   <style>
-    body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
-    img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }
-    #info { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; font-size: 24px; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px; }
+    body { 
+      margin: 0; 
+      background: #000; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      height: 100vh; 
+    }
+    img { 
+      width: 100%; 
+      height: 100%; 
+      object-fit: cover; 
+      border-radius: 12px; 
+    }
+    #info { 
+      position: absolute; 
+      bottom: 20px; 
+      left: 50%; 
+      transform: translateX(-50%); 
+      color: white; 
+      font-size: 24px; 
+      background: rgba(0,0,0,0.5); 
+      padding: 10px 20px; 
+      border-radius: 8px; 
+    }
   </style>
 </head>
 <body>
@@ -17,20 +39,22 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
     import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
+    // ✅ Correct Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyDrZDZ_M_DC97zLxLw4hgxwm_revSjwkMA",
       authDomain: "project-jarvis-creators.firebaseapp.com",
+      databaseURL: "https://project-jarvis-creators-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "project-jarvis-creators",
-      storageBucket: "project-jarvis-creators.firebasestorage.app",
+      storageBucket: "project-jarvis-creators.appspot.com",
       messagingSenderId: "489774215647",
-      appId: "1:489774215647:web:9f4c6d2b48d6203ea6d46a",
-      measurementId: "G-J40BFX6RET",
-      databaseURL: "https://project-jarvis-creators-default-rtdb.firebaseio.com/"
+      appId: "1:489774215647:web:496a71ec5b210c6aa6d46a",
+      measurementId: "G-P6ZFBKM2RR"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
+    // You can map codes to real image URLs here
     const mapping = {
       "pic1": "https://lab4u.tech/pic1.jpg",
       "pic2": "https://lab4u.tech/pic2.jpg",
@@ -40,11 +64,15 @@
     const img = document.getElementById("display");
     const info = document.getElementById("info");
 
+    // Listen to selection changes in Firebase
     onValue(ref(db, "gallery/selected"), snapshot => {
       const code = snapshot.val();
       if (code && mapping[code]) {
         img.src = mapping[code];
         info.textContent = `Now showing: ${code}`;
+      } else {
+        info.textContent = "Waiting for selection...";
+        img.src = "";
       }
     });
   </script>
