@@ -2,46 +2,38 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Bluetooth Palm Receiver</title>
+  <title>Palm Receiver</title>
 </head>
 <body>
-  <h2>Received Image Code:</h2>
-  <p id="output">Waiting...</p>
-  <img id="viewer" width="300">
+  <h1>Waiting for palm signal...</h1>
+  <div id="output"></div>
 
-  <script>
-    let images = {
-      "pic1": "pic1.jpg",
-      "pic2": "pic2.jpg",
-      "pic3": "pic3.jpg"
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrZDZ_M_DC97zLxLw4hgxwm_revSjwkMA",
+      authDomain: "project-jarvis-creators.firebaseapp.com",
+      projectId: "project-jarvis-creators",
+      storageBucket: "project-jarvis-creators.firebasestorage.app",
+      messagingSenderId: "489774215647",
+      appId: "1:489774215647:web:9f4c6d2b48d6203ea6d46a",
+      measurementId: "G-J40BFX6RET",
+      databaseURL: "https://project-jarvis-creators-default-rtdb.firebaseio.com"
     };
 
-    async function connectBluetooth() {
-      try {
-        let device = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: ['12345678-1234-5678-1234-56789abcdef0']
-        });
-        let server = await device.gatt.connect();
-        let service = await server.getPrimaryService('12345678-1234-5678-1234-56789abcdef0');
-        let characteristic = await service.getCharacteristic('12345678-1234-5678-1234-56789abcdef1');
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
-        characteristic.startNotifications();
-        characteristic.addEventListener("characteristicvaluechanged", event => {
-          let decoder = new TextDecoder();
-          let code = decoder.decode(event.target.value);
-          document.getElementById("output").innerText = code;
-          if (images[code]) {
-            document.getElementById("viewer").src = images[code];
-          }
-        });
-        alert("Receiver connected!");
-      } catch (e) {
-        alert("Error: " + e);
+    const output = document.getElementById("output");
+
+    onValue(ref(db, "palmData"), (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        output.innerText = "Palm Triggered: " + data.code;
       }
-    }
-
-    connectBluetooth();
+    });
   </script>
 </body>
 </html>
