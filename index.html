@@ -2,24 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Gallery Palm Control</title>
+  <title>Sender Gallery</title>
   <style>
     body {
       margin: 0;
       background: #000;
-      overflow: hidden;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
+      overflow: hidden;
+      position: relative;
     }
     #gallery {
-      position: relative;
-      width: 100%;
-      height: 100%;
       display: flex;
-      transition: transform 0.6s ease-in-out;
-      overflow: hidden;
+      height: 100%;
+      width: 100%;
+      transition: transform 0.5s ease;
+      touch-action: pan-y;
     }
     .slide {
       min-width: 100%;
@@ -27,55 +27,46 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      background: #000;
     }
     .slide img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: 12px;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain; /* keep quality */
     }
-    #animation {
+    .dots {
       position: absolute;
-      top: 50%;
+      bottom: 20px;
       left: 50%;
-      transform: translate(-50%, -50%);
-      width: 120px;
-      height: 120px;
-      border: 6px solid rgba(255,255,255,0.2);
-      border-top: 6px solid #4caf50;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
-      animation: spin 2s linear infinite;
-      display: none;
+      background: gray;
+      transition: background 0.3s;
     }
-    #tick {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 64px;
-      color: #4caf50;
-      display: none;
-    }
-    @keyframes spin {
-      from { transform: translate(-50%, -50%) rotate(0deg); }
-      to   { transform: translate(-50%, -50%) rotate(360deg); }
+    .dot.active {
+      background: white;
     }
   </style>
 </head>
 <body>
-  <div id="gallery"></div>
-  <div id="animation"></div>
-  <div id="tick">✔</div>
-
-  <!-- Camera (tiny but visible so browser allows it) -->
-  <video id="camera" autoplay playsinline style="width:1px;height:1px;opacity:0.01;"></video>
+  <div id="gallery">
+    <div class="slide"><img src="https://lab4u.tech/pic1.jpg"></div>
+    <div class="slide"><img src="https://lab4u.tech/pic2.jpg"></div>
+    <div class="slide"><img src="https://lab4u.tech/pic3.jpg"></div>
+  </div>
+  <div class="dots"></div>
 
   <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
     import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
-    // ✅ Correct Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyDrZDZ_M_DC97zLxLw4hgxwm_revSjwkMA",
       authDomain: "project-jarvis-creators.firebaseapp.com",
@@ -90,95 +81,76 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Gallery images
-    const images = [
-      { code: "pic1", src: "https://lab4u.tech/pic1.jpg" },
-      { code: "pic2", src: "https://lab4u.tech/pic2.jpg" },
-      { code: "pic3", src: "https://lab4u.tech/pic3.jpg" }
-    ];
+    const gallery = document.getElementById("gallery");
+    const slides = document.querySelectorAll(".slide");
+    const dotsContainer = document.querySelector(".dots");
 
     let currentIndex = 0;
-    const gallery = document.getElementById("gallery");
-    images.forEach(img => {
-      const div = document.createElement("div");
-      div.className = "slide";
-      div.innerHTML = `<img src="${img.src}" alt="${img.code}">`;
-      gallery.appendChild(div);
-    });
-
-    function updateGallery() {
-      gallery.style.transform = `translateX(-${currentIndex * 100}%)`;
-    }
-    updateGallery();
-
-    // Swipe left/right for navigation
     let startX = 0;
-    gallery.addEventListener("touchstart", e => startX = e.touches[0].clientX);
-    gallery.addEventListener("touchend", e => {
-      let endX = e.changedTouches[0].clientX;
-      if (endX < startX - 50) currentIndex = Math.min(images.length - 1, currentIndex + 1);
-      if (endX > startX + 50) currentIndex = Math.max(0, currentIndex - 1);
-      updateGallery();
+    let currentX = 0;
+    let isDragging = false;
+
+    // Create dots
+    slides.forEach((_, i) => {
+      const dot = document.createElement("div");
+      dot.classList.add("dot");
+      if (i === 0) dot.classList.add("active");
+      dotsContainer.appendChild(dot);
     });
 
-    // Expose db + images globally so MediaPipe script can use them
-    window.db = db;
-    window.images = images;
-    window.getCurrentIndex = () => currentIndex;
-  </script>
+    function updateDots() {
+      document.querySelectorAll(".dot").forEach((dot, i) => {
+        dot.classList.toggle("active", i === currentIndex);
+      });
+    }
 
-  <!-- MediaPipe (loaded as globals) -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    function updateSlide() {
+      gallery.style.transform = `translateX(-${currentIndex * 100}%)`;
+      updateDots();
+      // Send to Firebase
+      const codes = ["pic1", "pic2", "pic3"];
+      set(ref(db, "gallery/selected"), codes[currentIndex]);
+    }
 
-  <script>
-    const video = document.getElementById("camera");
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    // Swipe handling
+    gallery.addEventListener("touchstart", (e) => {
+      startX = e.touches[0].clientX;
+      isDragging = true;
     });
-
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.8,
-      minTrackingConfidence: 0.8
+    gallery.addEventListener("touchmove", (e) => {
+      if (!isDragging) return;
+      currentX = e.touches[0].clientX;
     });
-
-    let palmVisibleSince = null;
-    hands.onResults(async results => {
-      const palmDetected = results.multiHandLandmarks && results.multiHandLandmarks.length > 0;
-      const animation = document.getElementById("animation");
-      const tick = document.getElementById("tick");
-
-      if (palmDetected) {
-        if (!palmVisibleSince) palmVisibleSince = Date.now();
-        const elapsed = Date.now() - palmVisibleSince;
-        animation.style.display = "block";
-
-        if (elapsed > 2000) {
-          animation.style.display = "none";
-          tick.style.display = "block";
-          setTimeout(() => tick.style.display = "none", 1500);
-
-          // ✅ Send current photo code to Firebase
-          const currentCode = window.images[window.getCurrentIndex()].code;
-          const { ref, set } = await import("https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js");
-          set(ref(window.db, "gallery/selected"), currentCode);
-
-          palmVisibleSince = null;
-        }
-      } else {
-        palmVisibleSince = null;
-        animation.style.display = "none";
+    gallery.addEventListener("touchend", () => {
+      if (!isDragging) return;
+      const delta = currentX - startX;
+      if (delta > 50 && currentIndex > 0) {
+        currentIndex--;
+      } else if (delta < -50 && currentIndex < slides.length - 1) {
+        currentIndex++;
       }
+      updateSlide();
+      isDragging = false;
     });
 
-    const camera = new Camera(video, {
-      onFrame: async () => { await hands.send({ image: video }); },
-      width: 640,
-      height: 480
+    // Mouse drag (for desktop test)
+    gallery.addEventListener("mousedown", (e) => {
+      startX = e.clientX;
+      isDragging = true;
     });
-    camera.start();
+    gallery.addEventListener("mouseup", (e) => {
+      if (!isDragging) return;
+      const delta = e.clientX - startX;
+      if (delta > 50 && currentIndex > 0) {
+        currentIndex--;
+      } else if (delta < -50 && currentIndex < slides.length - 1) {
+        currentIndex++;
+      }
+      updateSlide();
+      isDragging = false;
+    });
+
+    updateSlide(); // initialize
   </script>
 </body>
 </html>
