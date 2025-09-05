@@ -1,116 +1,99 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Gallery Palm Control - Sender (Fixed)</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8">
+  <title>Sender Gallery</title>
   <style>
-    /* Layout */
-    :root { --bg: #000; --accent: #4caf50; }
-    html,body { height:100%; margin:0; background:var(--bg); color:#fff; font-family:system-ui,Segoe UI,Roboto; }
-    #viewport { width:100vw; height:100vh; overflow:hidden; position:relative; touch-action:pan-y; display:flex; align-items:center; justify-content:center; }
-
-    /* Gallery */
-    #gallery {
-      display:flex;
-      height:100%;
-      will-change:transform;
-      user-select:none;
-      -webkit-user-select:none;
-      touch-action:none; /* handle pointer events manually */
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: black;
+      overflow: hidden;
     }
-    .slide {
-      flex:0 0 100%;
-      height:100%;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:var(--bg);
-      position:relative;
+    .gallery {
+      display: flex;
+      height: 100%;
+      width: 300%; /* for 3 images */
+      transition: transform 0.4s ease;
     }
-    .slide img {
-      width:100%;
-      height:100%;
-      object-fit:cover; /* fills screen edge-to-edge, keeps quality */
-      display:block;
+    .gallery img {
+      flex: 0 0 100%;
+      height: 100%;
+      width: 100%;
+      object-fit: contain;
+      background: black;
     }
-
-    /* Spinner + tick overlay */
+    .indicator {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: gray;
+    }
+    .dot.active {
+      background: white;
+    }
     .overlay {
-      position:absolute;
-      top:50%;
-      left:50%;
-      transform:translate(-50%,-50%);
-      pointer-events:none;
-      z-index:9999;
-      display:flex;
-      align-items:center;
-      justify-content:center;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      color: white;
     }
-
-    /* spinner ring */
-    #animation {
-      width:96px;
-      height:96px;
-      border-radius:50%;
-      border:8px solid rgba(255,255,255,0.14);
-      border-top-color:var(--accent);
-      animation:spin 0.9s linear infinite;
-      display:none;
-      box-shadow:0 6px 18px rgba(0,0,0,0.6), inset 0 -4px 8px rgba(0,0,0,0.2);
+    .spinner {
+      border: 5px solid rgba(255,255,255,0.2);
+      border-top: 5px solid white;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
     }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* tick */
-    #tick {
-      font-size:64px;
-      color:var(--accent);
-      display:none;
-      text-shadow: 0 6px 12px rgba(0,0,0,0.6);
+    @keyframes spin {
+      from { transform: rotate(0); }
+      to { transform: rotate(360deg); }
     }
-
-    /* small camera (kept visible to avoid browser blocking) */
-    #camera { position:absolute; left:-9999px; width:1px; height:1px; opacity:0.01; }
-
-    /* Dots (optional visual) */
-    .dots { position:absolute; bottom:18px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:999; }
-    .dot { width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,0.2); transition:background .25s; }
-    .dot.active { background: #fff; }
-
-    /* Prevent accidental text selection cursor on desktop */
-    * { -webkit-tap-highlight-color: rgba(0,0,0,0); }
+    .tick {
+      font-size: 50px;
+      display: none;
+    }
   </style>
 </head>
 <body>
-  <div id="viewport">
-    <div id="gallery" aria-hidden="false"></div>
-
-    <!-- Overlays -->
-    <div class="overlay" aria-hidden="true">
-      <div id="animation" aria-hidden="true"></div>
-      <div id="tick" aria-hidden="true">✔</div>
-    </div>
-
-    <!-- Dots for user awareness -->
-    <div class="dots" id="dots" aria-hidden="true"></div>
-
-    <!-- Hidden camera element (kept slightly visible to prevent permissions/block) -->
-    <video id="camera" autoplay playsinline muted></video>
+  <div class="gallery" id="gallery">
+    <img src="pic1.jpg" alt="pic1">
+    <img src="pic2.jpg" alt="pic2">
+    <img src="pic3.jpg" alt="pic3">
   </div>
 
-  <!-- Firebase (module) -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
-    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+  <div class="indicator" id="indicator"></div>
 
-    // === Correct Firebase config (match your console) ===
+  <div class="overlay" id="overlay">
+    <div class="spinner" id="spinner"></div>
+    <div class="tick" id="tick">✔</div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyDrZDZ_M_DC97zLxLw4hgxwm_revSjwkMA",
       authDomain: "project-jarvis-creators.firebaseapp.com",
       databaseURL: "https://project-jarvis-creators-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "project-jarvis-creators",
-      storageBucket: "project-jarvis-creators.appspot.com",
+      storageBucket: "project-jarvis-creators.firebasestorage.app",
       messagingSenderId: "489774215647",
       appId: "1:489774215647:web:496a71ec5b210c6aa6d46a",
       measurementId: "G-P6ZFBKM2RR"
@@ -119,237 +102,81 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Expose Firebase write function for non-module script (safe wrapper)
-    window.sendSelection = async (code) => {
-      try {
-        await set(ref(db, "gallery/selected"), code);
-        console.log("Sent to Firebase:", code);
-      } catch (err) {
-        console.error("Firebase write failed:", err);
-      }
-    };
+    // Gallery
+    const gallery = document.getElementById("gallery");
+    const indicator = document.getElementById("indicator");
+    const total = gallery.children.length;
+    let current = 0;
+    let startX = 0;
+    let isDragging = false;
 
-    // Gallery images (you can add more)
-    window.images = [
-      { code: "pic1", src: "https://lab4u.tech/pic1.jpg" },
-      { code: "pic2", src: "https://lab4u.tech/pic2.jpg" },
-      { code: "pic3", src: "https://lab4u.tech/pic3.jpg" }
-    ];
-  </script>
+    // preload images
+    [...gallery.children].forEach(img => {
+      const i = new Image();
+      i.src = img.src;
+    });
 
-  <!-- MediaPipe (global scripts) -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-
-  <!-- Main (non-module) - gallery, pointer drag, mediapipe logic -->
-  <script>
-    (function () {
-      const gallery = document.getElementById('gallery');
-      const dotsContainer = document.getElementById('dots');
-      const animation = document.getElementById('animation');
-      const tick = document.getElementById('tick');
-      const video = document.getElementById('camera');
-
-      // images injected from module as window.images
-      const images = window.images || [];
-      if (!images.length) console.warn("No images found in window.images");
-
-      // Build slides
-      images.forEach((it) => {
-        const slide = document.createElement('div');
-        slide.className = 'slide';
-        const img = document.createElement('img');
-        img.src = it.src;
-        img.alt = it.code;
-        slide.appendChild(img);
-        gallery.appendChild(slide);
+    // indicators
+    for (let i = 0; i < total; i++) {
+      const dot = document.createElement("div");
+      dot.className = "dot" + (i === 0 ? " active" : "");
+      indicator.appendChild(dot);
+    }
+    function updateIndicator() {
+      [...indicator.children].forEach((d, i) => {
+        d.classList.toggle("active", i === current);
       });
+    }
+    function updateGallery() {
+      gallery.style.transform = `translateX(-${current * 100}%)`;
+      updateIndicator();
+    }
 
-      // Create dots
-      images.forEach((_, i) => {
-        const d = document.createElement('div');
-        d.className = 'dot' + (i === 0 ? ' active' : '');
-        dotsContainer.appendChild(d);
-      });
+    // swipe events
+    gallery.addEventListener("touchstart", e => {
+      startX = e.touches[0].clientX;
+      isDragging = true;
+    });
+    gallery.addEventListener("touchend", e => {
+      if (!isDragging) return;
+      const endX = e.changedTouches[0].clientX;
+      if (endX - startX > 50 && current > 0) current--;
+      if (startX - endX > 50 && current < total - 1) current++;
+      updateGallery();
+      isDragging = false;
+    });
 
-      // State
-      let currentIndex = 0;
-      let slideWidth = gallery.clientWidth || window.innerWidth;
-      let isPointerDown = false;
-      let startX = 0;
-      let currentTranslate = 0;
-      let prevTranslate = 0;
-      let rafId = null;
-      const threshold = 60; // px to consider swipe
-      const maxTranslate = (images.length - 1) * slideWidth;
+    // Palm detection simulation (replace with real MediaPipe palm logic)
+    const overlay = document.getElementById("overlay");
+    const spinner = document.getElementById("spinner");
+    const tick = document.getElementById("tick");
 
-      function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+    function sendCurrentPic() {
+      const picCode = "pic" + (current + 1);
+      set(ref(db, "gallery/selected"), picCode);
+    }
 
-      function setTranslate(x, withTransition = false) {
-        if (withTransition) gallery.style.transition = 'transform 0.45s cubic-bezier(.22,.9,.31,1)';
-        else gallery.style.transition = 'none';
-        gallery.style.transform = `translateX(${x}px)`;
-        currentTranslate = x;
-      }
+    // Fake trigger after 2s to demo animation
+    function triggerPalm() {
+      overlay.style.display = "flex";
+      spinner.style.display = "block";
+      tick.style.display = "none";
 
-      function updateToIndex(index) {
-        currentIndex = clamp(index, 0, images.length - 1);
-        prevTranslate = -currentIndex * slideWidth;
-        setTranslate(prevTranslate, true);
-        // update dots
-        Array.from(dotsContainer.children).forEach((dot, i) => dot.classList.toggle('active', i === currentIndex));
-      }
+      setTimeout(() => {
+        spinner.style.display = "none";
+        tick.style.display = "block";
+        sendCurrentPic();
 
-      // initial position
-      function resizeHandler() {
-        slideWidth = gallery.clientWidth || window.innerWidth;
-        const newMax = (images.length - 1) * slideWidth;
-        // adjust prevTranslate proportionally
-        prevTranslate = -currentIndex * slideWidth;
-        setTranslate(prevTranslate, false);
-      }
-      window.addEventListener('resize', resizeHandler);
-      resizeHandler();
+        setTimeout(() => {
+          overlay.style.display = "none";
+        }, 1500);
+      }, 2000);
+    }
 
-      // Pointer handlers (works for mouse & touch)
-      gallery.addEventListener('pointerdown', (e) => {
-        isPointerDown = true;
-        startX = e.clientX;
-        gallery.setPointerCapture(e.pointerId);
-        gallery.style.transition = 'none';
-        // cancel any current transition RAF
-        if (rafId) cancelAnimationFrame(rafId);
-      });
+    // DEMO: auto trigger palm every 6s
+    setInterval(triggerPalm, 6000);
 
-      gallery.addEventListener('pointermove', (e) => {
-        if (!isPointerDown) return;
-        const delta = e.clientX - startX;
-        // live translate with clamping and slight resistance when overscrolling
-        let target = prevTranslate + delta;
-        // clamp between 0 .. -max
-        target = clamp(target, -maxTranslate - 60, 60); // allow small overshoot
-        setTranslate(target, false);
-      });
-
-      function pointerUpEnd(e) {
-        if (!isPointerDown) return;
-        isPointerDown = false;
-        const delta = e.clientX - startX;
-        // decide index
-        if (delta > threshold && currentIndex > 0) {
-          updateToIndex(currentIndex - 1);
-        } else if (delta < -threshold && currentIndex < images.length - 1) {
-          updateToIndex(currentIndex + 1);
-        } else {
-          // snap back
-          updateToIndex(currentIndex);
-        }
-        prevTranslate = -currentIndex * slideWidth;
-      }
-      gallery.addEventListener('pointerup', pointerUpEnd);
-      gallery.addEventListener('pointercancel', pointerUpEnd);
-      gallery.addEventListener('pointerleave', (e) => { if (isPointerDown) pointerUpEnd(e); });
-
-      // keyboard arrows for convenience
-      window.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowLeft') updateToIndex(currentIndex - 1);
-        if (e.key === 'ArrowRight') updateToIndex(currentIndex + 1);
-      });
-
-      // Expose current index so MediaPipe can use it
-      window.getCurrentIndex = () => currentIndex;
-
-      /**************
-       * MediaPipe hands & animation control
-       **************/
-      const hands = new Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-      });
-      hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.75,
-        minTrackingConfidence: 0.6
-      });
-
-      let palmVisibleSince = 0;
-      let palmTimeout = null;
-
-      // Show spinner (start) and cancel (stop) helpers
-      function startSpinner() {
-        // show spinner, hide tick
-        tick.style.display = 'none';
-        animation.style.display = 'block';
-      }
-      function stopSpinner() {
-        animation.style.display = 'none';
-      }
-
-      function showTickBriefly() {
-        tick.style.display = 'block';
-        setTimeout(() => { tick.style.display = 'none'; }, 1400);
-      }
-
-      hands.onResults((results) => {
-        try {
-          const detected = results.multiHandLandmarks && results.multiHandLandmarks.length > 0;
-          if (detected) {
-            // If we just started seeing the palm
-            if (!palmVisibleSince) {
-              palmVisibleSince = Date.now();
-              startSpinner();
-              // schedule the 2-second confirmation
-              palmTimeout = setTimeout(async () => {
-                // double-check last known palm presence
-                if (palmVisibleSince) {
-                  // success: hide spinner, show tick, and send firebase selection
-                  stopSpinner();
-                  showTickBriefly();
-                  const idx = window.getCurrentIndex();
-                  const code = (window.images && window.images[idx] && window.images[idx].code) || null;
-                  if (code && window.sendSelection) {
-                    // call wrapper exposed by module to write to Firebase
-                    window.sendSelection(code);
-                  }
-                }
-                palmVisibleSince = 0;
-                palmTimeout = null;
-              }, 2000);
-            }
-            // else already counting; do nothing (spinner already visible)
-          } else {
-            // no palm: cancel pending action and hide spinner
-            if (palmTimeout) {
-              clearTimeout(palmTimeout);
-              palmTimeout = null;
-            }
-            palmVisibleSince = 0;
-            stopSpinner();
-          }
-        } catch (err) {
-          console.error("onResults error:", err);
-          // be defensive: cancel timers and hide UI
-          if (palmTimeout) { clearTimeout(palmTimeout); palmTimeout = null; }
-          palmVisibleSince = 0;
-          stopSpinner();
-        }
-      });
-
-      // Start camera
-      const camera = new Camera(video, {
-        onFrame: async () => {
-          try { await hands.send({ image: video }); } catch (e) {/* ignore frame send errors */}
-        },
-        width: 640,
-        height: 480
-      });
-      camera.start().catch(e => {
-        console.warn("Camera start failed (browser may block).", e);
-      });
-
-      // Prevent context menu on long press (mobile)
-      gallery.addEventListener('contextmenu', (e) => e.preventDefault());
-    })();
+    updateGallery();
   </script>
 </body>
 </html>
