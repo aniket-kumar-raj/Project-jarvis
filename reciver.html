@@ -13,11 +13,13 @@
       height: 100vh;
       overflow: hidden;
       position: relative;
+      user-select: none;
+      -webkit-user-select: none;
     }
     #display {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain; /* keep full image without cutting */
       border-radius: 12px;
       opacity: 0;
       transition: opacity 1s ease-in-out;
@@ -38,7 +40,7 @@
 <body>
   <video id="camera" autoplay playsinline style="width:1px;height:1px;opacity:0.01;"></video>
   <img id="display" src="">
-  <div id="info">Show your palm to load image...</div>
+  <div id="info">Click anywhere to enter fullscreen...</div>
 
   <!-- Firebase -->
   <script type="module">
@@ -68,6 +70,12 @@
 
     const img = document.getElementById("display");
     const info = document.getElementById("info");
+
+    // --- Preload all images ---
+    Object.values(mapping).forEach(src => {
+      const preload = new Image();
+      preload.src = src;
+    });
 
     let latestCode = null;
     onValue(ref(db, "gallery/selected"), snapshot => {
@@ -129,6 +137,24 @@
       height: 480
     });
     camera.start();
+
+    // --- Fullscreen trigger ---
+    function goFullscreen() {
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) {
+        elem.msRequestFullscreen();
+      }
+    }
+
+    // First user click makes fullscreen
+    window.addEventListener("click", () => {
+      goFullscreen();
+      document.getElementById("info").textContent = "Show your palm to load image...";
+    }, { once: true });
   </script>
 </body>
 </html>
