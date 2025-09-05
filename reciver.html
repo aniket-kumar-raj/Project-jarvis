@@ -25,19 +25,23 @@
       border-radius: 12px;
       opacity: 0;
       transition: opacity 1s ease-in-out;
+      background: black;
     }
 
-    #info {
+    #overlay {
       position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: black;
       color: white;
-      font-size: 24px;
-      background: rgba(0,0,0,0.5);
-      padding: 10px 20px;
-      border-radius: 8px;
-      z-index: 10;
+      font-size: 28px;
+      opacity: 1;
+      transition: opacity 1s ease-in-out;
+      z-index: 5;
     }
 
     #fullscreenBtn {
@@ -59,7 +63,7 @@
   <video id="camera" autoplay playsinline style="width:1px;height:1px;opacity:0.01;"></video>
   <img id="imgA" class="layer">
   <img id="imgB" class="layer">
-  <div id="info">Show your palm to load image...</div>
+  <div id="overlay">Please show your palm in front of screen</div>
   <button id="fullscreenBtn">⛶ Fullscreen</button>
 
   <!-- Firebase -->
@@ -81,36 +85,29 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Mapping codes -> images
     const mapping = {
       "pic1": "https://lab4u.tech/pic1.jpg",
       "pic2": "https://lab4u.tech/pic2.jpg",
       "pic3": "https://lab4u.tech/pic3.jpg"
     };
 
-    // Preload all images
+    // Preload images
     Object.values(mapping).forEach(src => {
       const img = new Image();
       img.src = src;
     });
 
-    const info = document.getElementById("info");
     const imgA = document.getElementById("imgA");
     const imgB = document.getElementById("imgB");
-    let showingA = true; // toggle flag
+    const overlay = document.getElementById("overlay");
+    let showingA = true;
     let latestCode = null;
 
     onValue(ref(db, "gallery/selected"), snapshot => {
       latestCode = snapshot.val();
     });
 
-    // Expose for MediaPipe
     window.getLatestCode = () => latestCode;
-    window.mapping = mapping;
-    window.info = info;
-    window.imgA = imgA;
-    window.imgB = imgB;
-    window.showingA = () => showingA;
 
     // Switch image safely
     window.showImage = (code) => {
@@ -121,14 +118,20 @@
       const outgoing = showingA ? imgA : imgB;
 
       incoming.src = url;
-      incoming.style.opacity = 0; // reset
+      incoming.style.opacity = 0;
       setTimeout(() => {
         incoming.style.opacity = 1; // fade in
         outgoing.style.opacity = 0; // fade out
       }, 50);
 
       showingA = !showingA;
-      info.textContent = `Now showing: ${code}`;
+      overlay.style.opacity = 0; // hide overlay
+    };
+
+    window.hideImages = () => {
+      imgA.style.opacity = 0;
+      imgB.style.opacity = 0;
+      overlay.style.opacity = 1; // fade to black screen with message
     };
   </script>
 
@@ -165,7 +168,7 @@
         }
       } else {
         palmVisibleSince = null;
-        window.info.textContent = "Show your palm to load image...";
+        window.hideImages();
       }
     });
 
