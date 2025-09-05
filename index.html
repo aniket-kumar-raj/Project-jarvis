@@ -1,197 +1,355 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Gallery Palm Control - Sender</title>
+  <meta charset="utf-8" />
+  <title>Gallery Palm Control - Sender (Fixed)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body {
-      margin: 0;
-      background: #000;
-      overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
+    /* Layout */
+    :root { --bg: #000; --accent: #4caf50; }
+    html,body { height:100%; margin:0; background:var(--bg); color:#fff; font-family:system-ui,Segoe UI,Roboto; }
+    #viewport { width:100vw; height:100vh; overflow:hidden; position:relative; touch-action:pan-y; display:flex; align-items:center; justify-content:center; }
 
+    /* Gallery */
     #gallery {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      transition: transform 0.6s ease-in-out;
-      overflow: hidden;
+      display:flex;
+      height:100%;
+      will-change:transform;
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action:none; /* handle pointer events manually */
     }
-
     .slide {
-      min-width: 100%;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      flex:0 0 100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--bg);
+      position:relative;
     }
-
     .slide img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover; /* ensures full screen without stretching */
+      width:100%;
+      height:100%;
+      object-fit:cover; /* fills screen edge-to-edge, keeps quality */
+      display:block;
     }
 
-    /* Loading spinner */
+    /* Spinner + tick overlay */
+    .overlay {
+      position:absolute;
+      top:50%;
+      left:50%;
+      transform:translate(-50%,-50%);
+      pointer-events:none;
+      z-index:9999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    /* spinner ring */
     #animation {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 100px;
-      height: 100px;
-      border: 8px solid rgba(255, 255, 255, 0.2);
-      border-top: 8px solid #4caf50;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      display: none;
+      width:96px;
+      height:96px;
+      border-radius:50%;
+      border:8px solid rgba(255,255,255,0.14);
+      border-top-color:var(--accent);
+      animation:spin 0.9s linear infinite;
+      display:none;
+      box-shadow:0 6px 18px rgba(0,0,0,0.6), inset 0 -4px 8px rgba(0,0,0,0.2);
     }
 
-    /* Tick mark */
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* tick */
     #tick {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 64px;
-      color: #4caf50;
-      display: none;
+      font-size:64px;
+      color:var(--accent);
+      display:none;
+      text-shadow: 0 6px 12px rgba(0,0,0,0.6);
     }
 
-    @keyframes spin {
-      from { transform: translate(-50%, -50%) rotate(0deg); }
-      to   { transform: translate(-50%, -50%) rotate(360deg); }
-    }
+    /* small camera (kept visible to avoid browser blocking) */
+    #camera { position:absolute; left:-9999px; width:1px; height:1px; opacity:0.01; }
 
-    /* Hidden camera */
-    video {
-      width: 1px;
-      height: 1px;
-      opacity: 0.01;
-      position: absolute;
-    }
+    /* Dots (optional visual) */
+    .dots { position:absolute; bottom:18px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:999; }
+    .dot { width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,0.2); transition:background .25s; }
+    .dot.active { background: #fff; }
+
+    /* Prevent accidental text selection cursor on desktop */
+    * { -webkit-tap-highlight-color: rgba(0,0,0,0); }
   </style>
 </head>
 <body>
-  <div id="gallery"></div>
-  <div id="animation"></div>
-  <div id="tick">✔</div>
-  <video id="camera" autoplay playsinline></video>
+  <div id="viewport">
+    <div id="gallery" aria-hidden="false"></div>
 
-  <!-- Firebase -->
+    <!-- Overlays -->
+    <div class="overlay" aria-hidden="true">
+      <div id="animation" aria-hidden="true"></div>
+      <div id="tick" aria-hidden="true">✔</div>
+    </div>
+
+    <!-- Dots for user awareness -->
+    <div class="dots" id="dots" aria-hidden="true"></div>
+
+    <!-- Hidden camera element (kept slightly visible to prevent permissions/block) -->
+    <video id="camera" autoplay playsinline muted></video>
+  </div>
+
+  <!-- Firebase (module) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
     import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
+    // === Correct Firebase config (match your console) ===
     const firebaseConfig = {
       apiKey: "AIzaSyDrZDZ_M_DC97zLxLw4hgxwm_revSjwkMA",
       authDomain: "project-jarvis-creators.firebaseapp.com",
       databaseURL: "https://project-jarvis-creators-default-rtdb.asia-southeast1.firebasedatabase.app",
       projectId: "project-jarvis-creators",
-      storageBucket: "project-jarvis-creators.firebasestorage.app",
+      storageBucket: "project-jarvis-creators.appspot.com",
       messagingSenderId: "489774215647",
-      appId: "1:489774215647:web:9f4c6d2b48d6203ea6d46a",
-      measurementId: "G-J40BFX6RET"
+      appId: "1:489774215647:web:496a71ec5b210c6aa6d46a",
+      measurementId: "G-P6ZFBKM2RR"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Gallery images
-    const images = [
+    // Expose Firebase write function for non-module script (safe wrapper)
+    window.sendSelection = async (code) => {
+      try {
+        await set(ref(db, "gallery/selected"), code);
+        console.log("Sent to Firebase:", code);
+      } catch (err) {
+        console.error("Firebase write failed:", err);
+      }
+    };
+
+    // Gallery images (you can add more)
+    window.images = [
       { code: "pic1", src: "https://lab4u.tech/pic1.jpg" },
       { code: "pic2", src: "https://lab4u.tech/pic2.jpg" },
       { code: "pic3", src: "https://lab4u.tech/pic3.jpg" }
     ];
-
-    let currentIndex = 0;
-    const gallery = document.getElementById("gallery");
-    images.forEach(img => {
-      const div = document.createElement("div");
-      div.className = "slide";
-      div.innerHTML = `<img src="${img.src}">`;
-      gallery.appendChild(div);
-    });
-
-    function updateGallery() {
-      gallery.style.transform = `translateX(-${currentIndex * 100}%)`;
-    }
-    updateGallery();
-
-    // Swipe navigation
-    let startX = 0;
-    gallery.addEventListener("touchstart", e => startX = e.touches[0].clientX);
-    gallery.addEventListener("touchend", e => {
-      let endX = e.changedTouches[0].clientX;
-      if (endX < startX - 50) currentIndex = Math.min(images.length - 1, currentIndex + 1);
-      if (endX > startX + 50) currentIndex = Math.max(0, currentIndex - 1);
-      updateGallery();
-    });
   </script>
 
-  <!-- MediaPipe -->
+  <!-- MediaPipe (global scripts) -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
+  <!-- Main (non-module) - gallery, pointer drag, mediapipe logic -->
   <script>
-    const video = document.getElementById("camera");
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
+    (function () {
+      const gallery = document.getElementById('gallery');
+      const dotsContainer = document.getElementById('dots');
+      const animation = document.getElementById('animation');
+      const tick = document.getElementById('tick');
+      const video = document.getElementById('camera');
 
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.8,
-      minTrackingConfidence: 0.8
-    });
+      // images injected from module as window.images
+      const images = window.images || [];
+      if (!images.length) console.warn("No images found in window.images");
 
-    let palmVisibleSince = null;
-    let animation = document.getElementById("animation");
-    let tick = document.getElementById("tick");
-    let palmTimer = null;
+      // Build slides
+      images.forEach((it) => {
+        const slide = document.createElement('div');
+        slide.className = 'slide';
+        const img = document.createElement('img');
+        img.src = it.src;
+        img.alt = it.code;
+        slide.appendChild(img);
+        gallery.appendChild(slide);
+      });
 
-    hands.onResults(results => {
-      const palmDetected = results.multiHandLandmarks && results.multiHandLandmarks.length > 0;
+      // Create dots
+      images.forEach((_, i) => {
+        const d = document.createElement('div');
+        d.className = 'dot' + (i === 0 ? ' active' : '');
+        dotsContainer.appendChild(d);
+      });
 
-      if (palmDetected) {
-        if (!palmVisibleSince) {
-          palmVisibleSince = Date.now();
-          animation.style.display = "block"; // start spinner
-          palmTimer = setTimeout(() => {
-            animation.style.display = "none";
-            tick.style.display = "block";
-            setTimeout(() => tick.style.display = "none", 1500);
+      // State
+      let currentIndex = 0;
+      let slideWidth = gallery.clientWidth || window.innerWidth;
+      let isPointerDown = false;
+      let startX = 0;
+      let currentTranslate = 0;
+      let prevTranslate = 0;
+      let rafId = null;
+      const threshold = 60; // px to consider swipe
+      const maxTranslate = (images.length - 1) * slideWidth;
 
-            // Send selected image to Firebase
-            set(ref(db, "gallery/selected"), images[currentIndex].code);
+      function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
-            palmVisibleSince = null;
-          }, 2000); // ✅ 2 sec hold required
-        }
-      } else {
-        palmVisibleSince = null;
-        animation.style.display = "none"; // stop spinner immediately
-        if (palmTimer) {
-          clearTimeout(palmTimer); // cancel 2-sec wait
-          palmTimer = null;
-        }
+      function setTranslate(x, withTransition = false) {
+        if (withTransition) gallery.style.transition = 'transform 0.45s cubic-bezier(.22,.9,.31,1)';
+        else gallery.style.transition = 'none';
+        gallery.style.transform = `translateX(${x}px)`;
+        currentTranslate = x;
       }
-    });
 
-    const camera = new Camera(video, {
-      onFrame: async () => {
-        await hands.send({ image: video });
-      },
-      width: 640,
-      height: 480
-    });
-    camera.start();
+      function updateToIndex(index) {
+        currentIndex = clamp(index, 0, images.length - 1);
+        prevTranslate = -currentIndex * slideWidth;
+        setTranslate(prevTranslate, true);
+        // update dots
+        Array.from(dotsContainer.children).forEach((dot, i) => dot.classList.toggle('active', i === currentIndex));
+      }
+
+      // initial position
+      function resizeHandler() {
+        slideWidth = gallery.clientWidth || window.innerWidth;
+        const newMax = (images.length - 1) * slideWidth;
+        // adjust prevTranslate proportionally
+        prevTranslate = -currentIndex * slideWidth;
+        setTranslate(prevTranslate, false);
+      }
+      window.addEventListener('resize', resizeHandler);
+      resizeHandler();
+
+      // Pointer handlers (works for mouse & touch)
+      gallery.addEventListener('pointerdown', (e) => {
+        isPointerDown = true;
+        startX = e.clientX;
+        gallery.setPointerCapture(e.pointerId);
+        gallery.style.transition = 'none';
+        // cancel any current transition RAF
+        if (rafId) cancelAnimationFrame(rafId);
+      });
+
+      gallery.addEventListener('pointermove', (e) => {
+        if (!isPointerDown) return;
+        const delta = e.clientX - startX;
+        // live translate with clamping and slight resistance when overscrolling
+        let target = prevTranslate + delta;
+        // clamp between 0 .. -max
+        target = clamp(target, -maxTranslate - 60, 60); // allow small overshoot
+        setTranslate(target, false);
+      });
+
+      function pointerUpEnd(e) {
+        if (!isPointerDown) return;
+        isPointerDown = false;
+        const delta = e.clientX - startX;
+        // decide index
+        if (delta > threshold && currentIndex > 0) {
+          updateToIndex(currentIndex - 1);
+        } else if (delta < -threshold && currentIndex < images.length - 1) {
+          updateToIndex(currentIndex + 1);
+        } else {
+          // snap back
+          updateToIndex(currentIndex);
+        }
+        prevTranslate = -currentIndex * slideWidth;
+      }
+      gallery.addEventListener('pointerup', pointerUpEnd);
+      gallery.addEventListener('pointercancel', pointerUpEnd);
+      gallery.addEventListener('pointerleave', (e) => { if (isPointerDown) pointerUpEnd(e); });
+
+      // keyboard arrows for convenience
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') updateToIndex(currentIndex - 1);
+        if (e.key === 'ArrowRight') updateToIndex(currentIndex + 1);
+      });
+
+      // Expose current index so MediaPipe can use it
+      window.getCurrentIndex = () => currentIndex;
+
+      /**************
+       * MediaPipe hands & animation control
+       **************/
+      const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+      hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.75,
+        minTrackingConfidence: 0.6
+      });
+
+      let palmVisibleSince = 0;
+      let palmTimeout = null;
+
+      // Show spinner (start) and cancel (stop) helpers
+      function startSpinner() {
+        // show spinner, hide tick
+        tick.style.display = 'none';
+        animation.style.display = 'block';
+      }
+      function stopSpinner() {
+        animation.style.display = 'none';
+      }
+
+      function showTickBriefly() {
+        tick.style.display = 'block';
+        setTimeout(() => { tick.style.display = 'none'; }, 1400);
+      }
+
+      hands.onResults((results) => {
+        try {
+          const detected = results.multiHandLandmarks && results.multiHandLandmarks.length > 0;
+          if (detected) {
+            // If we just started seeing the palm
+            if (!palmVisibleSince) {
+              palmVisibleSince = Date.now();
+              startSpinner();
+              // schedule the 2-second confirmation
+              palmTimeout = setTimeout(async () => {
+                // double-check last known palm presence
+                if (palmVisibleSince) {
+                  // success: hide spinner, show tick, and send firebase selection
+                  stopSpinner();
+                  showTickBriefly();
+                  const idx = window.getCurrentIndex();
+                  const code = (window.images && window.images[idx] && window.images[idx].code) || null;
+                  if (code && window.sendSelection) {
+                    // call wrapper exposed by module to write to Firebase
+                    window.sendSelection(code);
+                  }
+                }
+                palmVisibleSince = 0;
+                palmTimeout = null;
+              }, 2000);
+            }
+            // else already counting; do nothing (spinner already visible)
+          } else {
+            // no palm: cancel pending action and hide spinner
+            if (palmTimeout) {
+              clearTimeout(palmTimeout);
+              palmTimeout = null;
+            }
+            palmVisibleSince = 0;
+            stopSpinner();
+          }
+        } catch (err) {
+          console.error("onResults error:", err);
+          // be defensive: cancel timers and hide UI
+          if (palmTimeout) { clearTimeout(palmTimeout); palmTimeout = null; }
+          palmVisibleSince = 0;
+          stopSpinner();
+        }
+      });
+
+      // Start camera
+      const camera = new Camera(video, {
+        onFrame: async () => {
+          try { await hands.send({ image: video }); } catch (e) {/* ignore frame send errors */}
+        },
+        width: 640,
+        height: 480
+      });
+      camera.start().catch(e => {
+        console.warn("Camera start failed (browser may block).", e);
+      });
+
+      // Prevent context menu on long press (mobile)
+      gallery.addEventListener('contextmenu', (e) => e.preventDefault());
+    })();
   </script>
 </body>
 </html>
