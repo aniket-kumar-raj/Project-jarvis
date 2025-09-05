@@ -13,51 +13,54 @@
       height: 100vh;
       overflow: hidden;
       position: relative;
-      user-select: none;
-      -webkit-user-select: none;
+      font-family: Arial, sans-serif;
     }
-    #display {
+
+    .layer {
+      position: absolute;
+      top: 0; left: 0;
       width: 100%;
       height: 100%;
-      object-fit: contain; /* full image without cutting */
+      object-fit: cover;
       border-radius: 12px;
       opacity: 0;
       transition: opacity 1s ease-in-out;
     }
+
     #info {
       position: absolute;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       color: white;
-      font-size: 20px;
+      font-size: 24px;
       background: rgba(0,0,0,0.5);
-      padding: 8px 16px;
-      border-radius: 8px;
-    }
-    #fs-btn {
-      position: absolute;
-      top: 15px;
-      right: 15px;
       padding: 10px 20px;
-      font-size: 16px;
-      border: none;
       border-radius: 8px;
-      background: #4caf50;
-      color: white;
-      cursor: pointer;
       z-index: 10;
     }
-    #fs-btn:hover {
-      background: #45a049;
+
+    #fullscreenBtn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 8px 14px;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      z-index: 10;
     }
   </style>
 </head>
 <body>
   <video id="camera" autoplay playsinline style="width:1px;height:1px;opacity:0.01;"></video>
-  <img id="display" src="">
+  <img id="imgA" class="layer">
+  <img id="imgB" class="layer">
   <div id="info">Show your palm to load image...</div>
-  <button id="fs-btn">Go Fullscreen</button>
+  <button id="fullscreenBtn">⛶ Fullscreen</button>
 
   <!-- Firebase -->
   <script type="module">
@@ -85,16 +88,18 @@
       "pic3": "https://lab4u.tech/pic3.jpg"
     };
 
-    const img = document.getElementById("display");
-    const info = document.getElementById("info");
-
-    // --- Preload all images ---
+    // Preload all images
     Object.values(mapping).forEach(src => {
-      const preload = new Image();
-      preload.src = src;
+      const img = new Image();
+      img.src = src;
     });
 
+    const info = document.getElementById("info");
+    const imgA = document.getElementById("imgA");
+    const imgB = document.getElementById("imgB");
+    let showingA = true; // toggle flag
     let latestCode = null;
+
     onValue(ref(db, "gallery/selected"), snapshot => {
       latestCode = snapshot.val();
     });
@@ -102,8 +107,29 @@
     // Expose for MediaPipe
     window.getLatestCode = () => latestCode;
     window.mapping = mapping;
-    window.img = img;
     window.info = info;
+    window.imgA = imgA;
+    window.imgB = imgB;
+    window.showingA = () => showingA;
+
+    // Switch image safely
+    window.showImage = (code) => {
+      const url = mapping[code];
+      if (!url) return;
+
+      const incoming = showingA ? imgB : imgA;
+      const outgoing = showingA ? imgA : imgB;
+
+      incoming.src = url;
+      incoming.style.opacity = 0; // reset
+      setTimeout(() => {
+        incoming.style.opacity = 1; // fade in
+        outgoing.style.opacity = 0; // fade out
+      }, 50);
+
+      showingA = !showingA;
+      info.textContent = `Now showing: ${code}`;
+    };
   </script>
 
   <!-- MediaPipe -->
@@ -132,18 +158,13 @@
         if (!palmVisibleSince) palmVisibleSince = Date.now();
         const elapsed = Date.now() - palmVisibleSince;
 
-        if (elapsed >= 2000) {
+        if (elapsed > 2000) {
           const code = window.getLatestCode();
-          if (code && window.mapping[code]) {
-            window.img.src = window.mapping[code];
-            window.img.style.opacity = 1; // fade in immediately
-            window.info.textContent = `Now showing: ${code}`;
-          }
-          palmVisibleSince = null; // reset after showing
+          if (code) window.showImage(code);
+          palmVisibleSince = null;
         }
       } else {
         palmVisibleSince = null;
-        window.img.style.opacity = 0; // hide until palm again
         window.info.textContent = "Show your palm to load image...";
       }
     });
@@ -155,17 +176,13 @@
     });
     camera.start();
 
-    // --- Fullscreen button ---
-    function goFullscreen() {
-      const elem = document.documentElement;
-      if (elem.requestFullscreen) elem.requestFullscreen();
-      else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
-      else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
-    }
-
-    document.getElementById("fs-btn").addEventListener("click", () => {
-      goFullscreen();
-      document.getElementById("fs-btn").style.display = "none"; // hide button after entering fullscreen
+    // Fullscreen button
+    document.getElementById("fullscreenBtn").addEventListener("click", () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => console.log(err));
+      } else {
+        document.exitFullscreen();
+      }
     });
   </script>
 </body>
