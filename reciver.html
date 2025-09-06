@@ -134,10 +134,26 @@
     let palmVisibleSince = null;
 
     function showImage(code) {
-      window.img.src = window.mapping[code];
+  const newSrc = window.mapping[code];
+  if (!newSrc) return;
+
+  // If already showing the same image, do nothing
+  if (window.img.src.includes(newSrc)) return;
+
+  // Fade out first
+  window.img.style.opacity = 0;
+
+  setTimeout(() => {
+    // Swap src after fade-out finishes
+    window.img.src = newSrc;
+
+    // Once image loads fully, fade in
+    window.img.onload = () => {
       window.img.style.opacity = 1;
       window.overlay.style.opacity = 0;
-    }
+    };
+  }, 500); // match fade-out duration
+}
 
     function hideImage() {
       window.img.style.opacity = 0;
