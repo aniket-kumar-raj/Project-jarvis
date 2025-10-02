@@ -153,7 +153,7 @@
         if (!palmVisibleSince) palmVisibleSince = Date.now();
         const elapsed = Date.now() - palmVisibleSince;
 
-        if (elapsed > 2000) {
+        if (elapsed > 100) {
           const code = window.getLatestCode();
           if (code) {
             showImage(code);
