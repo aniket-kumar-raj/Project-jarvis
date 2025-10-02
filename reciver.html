@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Receiver Gallery (Clean)</title>
+  <title>Receiver Gallery (Optimized)</title>
   <style>
     body {
       margin: 0;
@@ -22,7 +22,7 @@
       object-fit: contain;
       border-radius: 14px;
       opacity: 0;
-      transition: opacity 0.8s ease-in-out;
+      transition: opacity 0.4s linear; /* faster, lighter */
     }
 
     #overlay {
@@ -31,21 +31,21 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0,0,0,0.9);
+      background: rgba(0,0,0,0.85);
       display: flex;
       justify-content: center;
       align-items: center;
       color: white;
-      font-size: 22px;
+      font-size: 18px; /* slightly smaller for speed */
       opacity: 1;
-      transition: opacity 0.6s ease-in-out;
+      transition: opacity 0.3s linear;
+      text-align: center;
+      padding: 10px;
     }
 
+    /* Fully hidden video */
     video {
-      width: 1px;
-      height: 1px;
-      opacity: 0.01;
-      position: absolute;
+      display: none;
     }
   </style>
 </head>
@@ -73,13 +73,19 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Map of codes → images
+    // Code → image mapping
     const mapping = {
       "pic1": "https://lab4u.tech/pic1.jpg",
       "pic2": "https://lab4u.tech/pic2.jpg",
       "pic3": "https://lab4u.tech/pic3.jpg"
     };
-    Object.values(mapping).forEach(src => { const i = new Image(); i.src = src; });
+
+    // Preload with lazy
+    Object.values(mapping).forEach(src => {
+      const i = new Image();
+      i.src = src;
+      i.loading = "lazy";
+    });
 
     let latestCode = null;
     onValue(ref(db, "gallery/selected"), snap => {
@@ -105,9 +111,9 @@
 
     hands.setOptions({
       maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.8,
-      minTrackingConfidence: 0.8
+      modelComplexity: 0, // lighter model for low-end
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.6
     });
 
     let palmVisibleSince = null;
@@ -117,16 +123,13 @@
       const newSrc = window.mapping[code];
       if (!newSrc) return;
 
-      // If already showing this image → just fade overlay away
       if (currentCode === code) {
         img.style.opacity = 1;
         overlay.style.opacity = 0;
         return;
       }
 
-      // Fade out old image
       img.style.opacity = 0;
-
       setTimeout(() => {
         img.onload = () => {
           img.style.opacity = 1;
@@ -134,7 +137,7 @@
         };
         img.src = newSrc;
         currentCode = code;
-      }, 400);
+      }, 200);
     }
 
     function hideImage() {
@@ -155,7 +158,7 @@
           if (code) {
             showImage(code);
           } else if (currentCode) {
-            showImage(currentCode); // show last image again
+            showImage(currentCode);
           }
           palmVisibleSince = null;
         }
@@ -173,8 +176,8 @@
           console.warn("MediaPipe error:", err);
         }
       },
-      width: 640,
-      height: 480
+      width: 320, // reduced resolution
+      height: 240
     });
     camera.start();
   </script>
