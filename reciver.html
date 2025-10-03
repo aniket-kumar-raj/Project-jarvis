@@ -1,160 +1,78 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Receiver Gallery - Optimized HandTrack</title>
-  <style>
-    body {
-      margin: 0;
-      background: #000;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
-      font-family: Arial, sans-serif;
-      position: relative;
-    }
-
-    #display {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-      border-radius: 14px;
-      opacity: 0;
-      transition: opacity 0.3s linear;
-    }
-
-    #overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.85);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      color: white;
-      font-size: 18px;
-      opacity: 1;
-      transition: opacity 0.3s linear;
-      text-align: center;
-      padding: 10px;
-    }
-
-    video { display: none; }
-  </style>
+<meta charset="UTF-8">
+<title>Ultra Lightweight Palm Detector</title>
+<style>
+  body {
+    margin:0; background:#000; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden;
+    font-family:Arial,sans-serif; position:relative;
+  }
+  #display { max-width:100%; max-height:100%; opacity:0; transition:opacity 0.3s linear; }
+  #overlay {
+    position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center;
+    color:white; font-size:18px; text-align:center; background:rgba(0,0,0,0.85); opacity:1; transition:opacity 0.3s;
+  }
+  video { display:none; }
+</style>
 </head>
 <body>
-  <video id="camera" autoplay playsinline width="160" height="120"></video>
-  <img id="display" src="">
-  <div id="overlay">Please show your palm in front of screen</div>
+<video id="camera" autoplay playsinline width="80" height="60"></video>
+<img id="display" src="">
+<div id="overlay">Please show your palm</div>
 
-  <!-- Firebase -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
-    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+<script type="module">
+const video = document.getElementById("camera");
+const img = document.getElementById("display");
+const overlay = document.getElementById("overlay");
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDrZDZ_M_DC97zLxLw4hgxwm_revSjwkMA",
-      authDomain: "project-jarvis-creators.firebaseapp.com",
-      databaseURL: "https://project-jarvis-creators-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "project-jarvis-creators",
-      storageBucket: "project-jarvis-creators.appspot.com",
-      messagingSenderId: "489774215647",
-      appId: "1:489774215647:web:496a71ec5b210c6aa6d46a",
-      measurementId: "G-P6ZFBKM2RR"
-    };
+const mapping = {
+  "pic1":"https://lab4u.tech/pic1.jpg",
+  "pic2":"https://lab4u.tech/pic2.jpg",
+  "pic3":"https://lab4u.tech/pic3.jpg"
+};
+let latestCode = "pic1"; // default for testing
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+// tiny canvas for motion detection
+const canvas = document.createElement("canvas");
+canvas.width = 80;
+canvas.height = 60;
+const ctx = canvas.getContext("2d");
+let lastFrame = null;
 
-    const mapping = {
-      "pic1": "https://lab4u.tech/pic1.jpg",
-      "pic2": "https://lab4u.tech/pic2.jpg",
-      "pic3": "https://lab4u.tech/pic3.jpg"
-    };
+// start camera
+navigator.mediaDevices.getUserMedia({ video: true }).then(stream => { video.srcObject = stream; });
 
-    Object.values(mapping).forEach(src => { const i = new Image(); i.src = src; i.loading = "lazy"; });
+function showImage(code){
+  const newSrc = mapping[code];
+  if(img.src !== newSrc) img.src = newSrc;
+  img.style.opacity = 1;
+  overlay.style.opacity = 0;
+}
 
-    let latestCode = null;
-    onValue(ref(db, "gallery/selected"), snap => { latestCode = snap.val(); });
+function hideImage(){
+  img.style.opacity = 0;
+  overlay.style.opacity = 1;
+}
 
-    window.mapping = mapping;
-    window.getLatestCode = () => latestCode;
-  </script>
-
-  <!-- HandTrack.js -->
-  <script src="https://cdn.jsdelivr.net/npm/handtrackjs/dist/handtrack.min.js"></script>
-  <script>
-    const video = document.getElementById("camera");
-    const img = document.getElementById("display");
-    const overlay = document.getElementById("overlay");
-    let currentCode = null;
-
-    function showImage(code) {
-      const newSrc = window.mapping[code];
-      if (!newSrc) return;
-      if (currentCode === code) return;
-
-      img.style.opacity = 0;
-      setTimeout(() => {
-        img.onload = () => {
-          img.style.opacity = 1;
-          overlay.style.opacity = 0;
-        };
-        img.src = newSrc;
-        currentCode = code;
-      }, 50); // very short delay
+function detectMotion(){
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  const frame = ctx.getImageData(0,0,canvas.width,canvas.height);
+  if(lastFrame){
+    let diff = 0;
+    for(let i=0;i<frame.data.length;i+=4){
+      diff += Math.abs(frame.data[i]-lastFrame.data[i]);
     }
-
-    function hideImage() {
-      img.style.opacity = 0;
-      overlay.style.opacity = 1;
-      overlay.textContent = "Please show your palm in front of screen";
+    if(diff > 10000){ // motion threshold, tweak if too sensitive
+      showImage(latestCode);
+    } else {
+      hideImage();
     }
-
-    const modelParams = {
-      flipHorizontal: true,
-      maxNumBoxes: 1,
-      iouThreshold: 0.5,
-      scoreThreshold: 0.6,
-    };
-
-    handTrack.load(modelParams).then(model => {
-      overlay.textContent = "Show your palm to display image";
-
-      handTrack.startVideo(video).then(status => {
-        if (!status) {
-          overlay.textContent = "Camera not accessible!";
-          return;
-        }
-
-        let busy = false;
-        setInterval(() => {
-          if (busy) return; // prevent overlapping predictions
-          busy = true;
-
-          model.detect(video).then(predictions => {
-            if (predictions.length > 0) {
-              const code = window.getLatestCode();
-              if (code) showImage(code);
-            } else {
-              hideImage();
-            }
-            busy = false;
-          }).catch(err => {
-            console.error(err);
-            busy = false;
-          });
-
-        }, 500); // slower detection, less CPU load
-      });
-    }).catch(err => {
-      console.error("HandTrack.js init failed:", err);
-      overlay.textContent = "Palm detection not supported on this device";
-    });
-  </script>
+  }
+  lastFrame = frame;
+  requestAnimationFrame(detectMotion);
+}
+video.onloadeddata = ()=>{ detectMotion(); };
+</script>
 </body>
 </html>
