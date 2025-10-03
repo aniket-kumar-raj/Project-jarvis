@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Receiver Gallery (Optimized)</title>
+  <title>Receiver Gallery (Fallback)</title>
   <style>
     body {
       margin: 0;
@@ -22,7 +22,7 @@
       object-fit: contain;
       border-radius: 14px;
       opacity: 0;
-      transition: opacity 0.4s linear; /* faster, lighter */
+      transition: opacity 0.3s linear;
     }
 
     #overlay {
@@ -36,17 +36,14 @@
       justify-content: center;
       align-items: center;
       color: white;
-      font-size: 18px; /* slightly smaller for speed */
+      font-size: 18px;
       opacity: 1;
       transition: opacity 0.3s linear;
       text-align: center;
       padding: 10px;
     }
 
-    /* Fully hidden video */
-    video {
-      display: none;
-    }
+    video { display: none; }
   </style>
 </head>
 <body>
@@ -73,24 +70,16 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Code → image mapping
     const mapping = {
       "pic1": "https://lab4u.tech/pic1.jpg",
       "pic2": "https://lab4u.tech/pic2.jpg",
       "pic3": "https://lab4u.tech/pic3.jpg"
     };
 
-    // Preload with lazy
-    Object.values(mapping).forEach(src => {
-      const i = new Image();
-      i.src = src;
-      i.loading = "lazy";
-    });
+    Object.values(mapping).forEach(src => { const i = new Image(); i.src = src; i.loading = "lazy"; });
 
     let latestCode = null;
-    onValue(ref(db, "gallery/selected"), snap => {
-      latestCode = snap.val();
-    });
+    onValue(ref(db, "gallery/selected"), snap => { latestCode = snap.val(); });
 
     window.mapping = mapping;
     window.getLatestCode = () => latestCode;
@@ -104,82 +93,53 @@
     const video = document.getElementById("camera");
     const img = document.getElementById("display");
     const overlay = document.getElementById("overlay");
-
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
-
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 0, // lighter model for low-end
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.6
-    });
-
-    let palmVisibleSince = null;
     let currentCode = null;
 
     function showImage(code) {
       const newSrc = window.mapping[code];
       if (!newSrc) return;
-
-      if (currentCode === code) {
-        img.style.opacity = 1;
-        overlay.style.opacity = 0;
-        return;
-      }
-
+      if (currentCode === code) { img.style.opacity = 1; overlay.style.opacity = 0; return; }
       img.style.opacity = 0;
       setTimeout(() => {
-        img.onload = () => {
-          img.style.opacity = 1;
-          overlay.style.opacity = 0;
-        };
+        img.onload = () => { img.style.opacity = 1; overlay.style.opacity = 0; };
         img.src = newSrc;
         currentCode = code;
       }, 200);
     }
 
-    function hideImage() {
-      img.style.opacity = 0;
-      overlay.style.opacity = 1;
-      overlay.textContent = "Please show your palm in front of screen";
+    function hideImage() { img.style.opacity = 0; overlay.style.opacity = 1; overlay.textContent = "Please show your palm in front of screen"; }
+
+    // Fallback for devices where MediaPipe fails
+    function simpleFallback() {
+      setInterval(() => {
+        const code = window.getLatestCode();
+        if (code) showImage(code);
+      }, 1000);
     }
 
-    hands.onResults(results => {
-      const palmDetected = results.multiHandLandmarks?.length > 0;
+    try {
+      const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+      hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+      let palmVisibleSince = null;
 
-      if (palmDetected) {
-        if (!palmVisibleSince) palmVisibleSince = Date.now();
-        const elapsed = Date.now() - palmVisibleSince;
-
-        if (elapsed > 100) {
-          const code = window.getLatestCode();
-          if (code) {
-            showImage(code);
-          } else if (currentCode) {
-            showImage(currentCode);
+      hands.onResults(results => {
+        const palmDetected = results.multiHandLandmarks?.length > 0;
+        if (palmDetected) {
+          if (!palmVisibleSince) palmVisibleSince = Date.now();
+          if (Date.now() - palmVisibleSince > 500) {
+            const code = window.getLatestCode();
+            if (code) showImage(code);
+            palmVisibleSince = null;
           }
-          palmVisibleSince = null;
-        }
-      } else {
-        palmVisibleSince = null;
-        hideImage();
-      }
-    });
+        } else { palmVisibleSince = null; hideImage(); }
+      });
 
-    const camera = new Camera(video, {
-      onFrame: async () => {
-        try {
-          await hands.send({ image: video });
-        } catch (err) {
-          console.warn("MediaPipe error:", err);
-        }
-      },
-      width: 320, // reduced resolution
-      height: 240
-    });
-    camera.start();
+      const camera = new Camera(video, { width: 320, height: 240, onFrame: async () => { await hands.send({ image: video }).catch(e => console.warn(e)); } });
+      camera.start();
+    } catch (e) {
+      console.warn("MediaPipe failed, using fallback:", e);
+      simpleFallback();
+    }
   </script>
 </body>
 </html>
