@@ -45,59 +45,37 @@
 <div id="overlay">Please show your palm</div>
 
 <!-- Correct CDN -->
-<script src="https://cdn.jsdelivr.net/npm/handtrackjs/dist/handtrack.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
+
 <script>
-const video = document.getElementById("camera");
-const img = document.getElementById("display");
-const overlay = document.getElementById("overlay");
+const video = document.createElement('video');
+video.width = 320;
+video.height = 240;
+video.autoplay = true;
+document.body.appendChild(video);
 
-// Image to show on detection
-const IMAGE_URL = "https://lab4u.tech/pic1.jpg";
-const preloadImg = new Image();
-preloadImg.src = IMAGE_URL;
+async function start() {
+  await navigator.mediaDevices.getUserMedia({ video: true }).then(stream => video.srcObject = stream);
 
-let model;
-let imgVisible = false;
-
-// Start camera and load model
-handTrack.startVideo(video).then(status => {
-  if(status){
-    handTrack.load({
-      flipHorizontal: true,
-      maxNumBoxes: 1,
-      scoreThreshold: 0.6
-    }).then(lmodel => {
-      model = lmodel;
-      runDetection();
-    });
-  } else {
-    overlay.textContent = "Camera not allowed";
-  }
-});
-
-// Detection loop
-function runDetection(){
-  model.detect(video).then(predictions => {
-    if(predictions.length > 0){
-      if(!imgVisible){
-        img.src = IMAGE_URL;
-        img.style.opacity = 1;
-        overlay.style.opacity = 0;
-        imgVisible = true;
-      }
-    } else {
-      if(imgVisible){
-        img.style.opacity = 0;
-        overlay.style.opacity = 1;
-        imgVisible = false;
-      }
-    }
-    requestAnimationFrame(runDetection);
-  }).catch(err => {
-    console.warn("Detection error:", err);
-    requestAnimationFrame(runDetection);
+  const model = handPoseDetection.SupportedModels.MediaPipeHands;
+  const detector = await handPoseDetection.createDetector(model, {
+    runtime: 'tfjs', // runs on CPU
+    maxHands: 1,
   });
+
+  async function detect() {
+    const hands = await detector.estimateHands(video);
+    if(hands.length > 0){
+      console.log("Palm detected!", hands);
+      // Show your image here
+    }
+    requestAnimationFrame(detect);
+  }
+  detect();
 }
+start();
 </script>
 
 </body>
