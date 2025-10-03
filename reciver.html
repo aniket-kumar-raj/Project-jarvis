@@ -18,66 +18,38 @@
 <img id="display" src="">
 <div id="overlay">Please show your palm</div>
 
-<script type="module">
+<script src="https://cdn.jsdelivr.net/npm/handtrackjs@0.0.22/dist/handtrack.min.js"></script>
+<script>
 const video = document.getElementById("camera");
 const img = document.getElementById("display");
 const overlay = document.getElementById("overlay");
 
-const mapping = { "pic1":"https://lab4u.tech/pic1.jpg","pic2":"https://lab4u.tech/pic2.jpg","pic3":"https://lab4u.tech/pic3.jpg" };
-let latestCode = "pic1";
+let model;
 
-const canvas = document.createElement("canvas");
-canvas.width = 80;
-canvas.height = 60;
-const ctx = canvas.getContext("2d");
-let lastFrame = null;
-
-let imageVisible = false;      // state to avoid flicker
-let lastMotionTime = 0;
-const showDuration = 1000;     // show image for at least 1 sec
-
-navigator.mediaDevices.getUserMedia({ video: true }).then(stream => { video.srcObject = stream; });
-
-function showImage(code){
-  const newSrc = mapping[code];
-  if(img.src !== newSrc) img.src = newSrc;
-  if(!imageVisible){
-    img.style.opacity = 1;
-    overlay.style.opacity = 0;
-    imageVisible = true;
+handTrack.startVideo(video).then(function(status){
+  if(status){
+    handTrack.load({ flipHorizontal: true, maxNumBoxes: 1, scoreThreshold: 0.6 }).then(lmodel => {
+      model = lmodel;
+      runDetection();
+    });
+  } else {
+    overlay.textContent = "Camera not allowed";
   }
-}
+});
 
-function hideImage(){
-  if(imageVisible){
-    img.style.opacity = 0;
-    overlay.style.opacity = 1;
-    imageVisible = false;
-  }
-}
-
-function detectMotion(){
-  ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  const frame = ctx.getImageData(0,0,canvas.width,canvas.height);
-  
-  if(lastFrame){
-    let diff = 0;
-    for(let i=0;i<frame.data.length;i+=4){
-      diff += Math.abs(frame.data[i]-lastFrame.data[i]);
+function runDetection(){
+  model.detect(video).then(predictions => {
+    if(predictions.length > 0){
+      img.style.opacity = 1;
+      overlay.style.opacity = 0;
+    } else {
+      img.style.opacity = 0;
+      overlay.style.opacity = 1;
     }
-    const now = Date.now();
-    if(diff > 10000){ // motion threshold
-      lastMotionTime = now;
-      showImage(latestCode);
-    } else if(now - lastMotionTime > showDuration){
-      hideImage();
-    }
-  }
-  lastFrame = frame;
-  requestAnimationFrame(detectMotion);
+    requestAnimationFrame(runDetection);
+  });
 }
-
-video.onloadeddata = ()=>{ detectMotion(); };
 </script>
+
 </body>
 </html>
