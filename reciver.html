@@ -1,164 +1,170 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Receiver Gallery - Palm Detection Only</title>
-<style>
-  body {
-    margin: 0;
-    background: #000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    overflow: hidden;
-    font-family: Arial, sans-serif;
-    position: relative;
-  }
+  <meta charset="UTF-8">
+  <title>Receiver Gallery - CPU Palm Detection</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      position: relative;
+    }
 
-  #display {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    border-radius: 14px;
-    opacity: 0;
-    transition: opacity 0.3s linear;
-  }
+    #display {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: 14px;
+      opacity: 0;
+      transition: opacity 0.3s linear;
+    }
 
-  #overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.85);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: white;
-    font-size: 18px;
-    opacity: 1;
-    transition: opacity 0.3s linear;
-    text-align: center;
-    padding: 10px;
-  }
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 18px;
+      opacity: 1;
+      transition: opacity 0.3s linear;
+      text-align: center;
+      padding: 10px;
+    }
 
-  video { display: none; }
-</style>
+    video { display: none; }
+  </style>
 </head>
 <body>
-<video id="camera" autoplay playsinline></video>
-<img id="display" src="">
-<div id="overlay">Please show your palm in front of screen</div>
+  <video id="camera" autoplay playsinline></video>
+  <img id="display" src="">
+  <div id="overlay">Please show your palm in front of screen</div>
 
-<!-- Firebase -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
-import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDrZDZ_M_DC97zLxLw4hgxwm_revSjwkMA",
-  authDomain: "project-jarvis-creators.firebaseapp.com",
-  databaseURL: "https://project-jarvis-creators-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "project-jarvis-creators",
-  storageBucket: "project-jarvis-creators.appspot.com",
-  messagingSenderId: "489774215647",
-  appId: "1:489774215647:web:496a71ec5b210c6aa6d46a",
-  measurementId: "G-P6ZFBKM2RR"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-
-const mapping = {
-  "pic1": "https://lab4u.tech/pic1.jpg",
-  "pic2": "https://lab4u.tech/pic2.jpg",
-  "pic3": "https://lab4u.tech/pic3.jpg"
-};
-
-// Preload images
-Object.values(mapping).forEach(src => { const i = new Image(); i.src = src; });
-
-let latestCode = null;
-onValue(ref(db, "gallery/selected"), snap => { latestCode = snap.val(); });
-
-window.mapping = mapping;
-window.getLatestCode = () => latestCode;
-</script>
-
-<!-- MediaPipe -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-
-<script>
-const video = document.getElementById("camera");
-const img = document.getElementById("display");
-const overlay = document.getElementById("overlay");
-let currentCode = null;
-
-function showImage(code) {
-  const newSrc = window.mapping[code];
-  if (!newSrc) return;
-  if (currentCode === code) return;
-
-  img.style.opacity = 0;
-  setTimeout(() => {
-    img.onload = () => {
-      img.style.opacity = 1;
-      overlay.style.opacity = 0;
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrZDZ_M_DC97zLxLw4hgxwm_revSjwkMA",
+      authDomain: "project-jarvis-creators.firebaseapp.com",
+      databaseURL: "https://project-jarvis-creators-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "project-jarvis-creators",
+      storageBucket: "project-jarvis-creators.appspot.com",
+      messagingSenderId: "489774215647",
+      appId: "1:489774215647:web:496a71ec5b210c6aa6d46a",
+      measurementId: "G-P6ZFBKM2RR"
     };
-    img.src = newSrc;
-    currentCode = code;
-  }, 100);
-}
 
-function hideImage() {
-  img.style.opacity = 0;
-  overlay.style.opacity = 1;
-  overlay.textContent = "Please show your palm in front of screen";
-}
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
 
-try {
-  const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
-  hands.setOptions({
-    maxNumHands: 1,
-    modelComplexity: 0,          // lightest
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5
-  });
+    const mapping = {
+      "pic1": "https://lab4u.tech/pic1.jpg",
+      "pic2": "https://lab4u.tech/pic2.jpg",
+      "pic3": "https://lab4u.tech/pic3.jpg"
+    };
 
-  let palmVisibleSince = null;
+    Object.values(mapping).forEach(src => { const i = new Image(); i.src = src; i.loading = "lazy"; });
 
-  hands.onResults(results => {
-    const palmDetected = results.multiHandLandmarks?.length > 0;
+    let latestCode = null;
+    onValue(ref(db, "gallery/selected"), snap => { latestCode = snap.val(); });
 
-    if (palmDetected) {
-      if (!palmVisibleSince) palmVisibleSince = Date.now();
-      if (Date.now() - palmVisibleSince > 200) {
-        const code = window.getLatestCode();
-        if (code) showImage(code);
-        palmVisibleSince = null;
+    window.mapping = mapping;
+    window.getLatestCode = () => latestCode;
+  </script>
+
+  <!-- TensorFlow.js + Hand Pose Detection -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
+
+  <script>
+    const video = document.getElementById("camera");
+    const img = document.getElementById("display");
+    const overlay = document.getElementById("overlay");
+    let currentCode = null;
+
+    function showImage(code) {
+      const newSrc = window.mapping[code];
+      if (!newSrc) return;
+      if (currentCode === code) return;
+
+      img.style.opacity = 0;
+      setTimeout(() => {
+        img.onload = () => {
+          img.style.opacity = 1;
+          overlay.style.opacity = 0;
+        };
+        img.src = newSrc;
+        currentCode = code;
+      }, 100);
+    }
+
+    function hideImage() {
+      img.style.opacity = 0;
+      overlay.style.opacity = 1;
+      overlay.textContent = "Please show your palm in front of screen";
+    }
+
+    async function init() {
+      // Force CPU backend
+      await tf.setBackend('cpu');
+      await tf.ready();
+
+      // Create detector
+      const detector = await handPoseDetection.createDetector(
+        handPoseDetection.SupportedModels.MediaPipeHands,
+        {
+          runtime: 'tfjs',
+          maxHands: 1
+        }
+      );
+
+      // Start webcam
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+      video.srcObject = stream;
+
+      async function detectLoop() {
+        if (video.readyState < 2) { // not ready
+          requestAnimationFrame(detectLoop);
+          return;
+        }
+
+        try {
+          const hands = await detector.estimateHands(video, { flipHorizontal: false });
+          if (hands.length > 0) {
+            const code = window.getLatestCode();
+            if (code) showImage(code);
+          } else {
+            hideImage();
+          }
+        } catch (err) {
+          console.warn("Hand detection error:", err);
+          hideImage();
+        }
+
+        requestAnimationFrame(detectLoop);
       }
-    } else {
-      palmVisibleSince = null;
-      hideImage();
-    }
-  });
 
-  const camera = new Camera(video, {
-    width: 320,
-    height: 240,
-    onFrame: async () => {
-      try { await hands.send({ image: video }); } // no rendering, only detection
-      catch (err) { console.warn("MediaPipe error:", err); hideImage(); }
+      detectLoop();
     }
-  });
-  camera.start();
 
-} catch (e) {
-  console.error("MediaPipe failed:", e);
-  overlay.textContent = "Palm detection not supported on this device";
-}
-</script>
+    init().catch(e => {
+      console.error("TensorFlow init failed:", e);
+      overlay.textContent = "Palm detection not supported on this device";
+    });
+  </script>
 </body>
 </html>
