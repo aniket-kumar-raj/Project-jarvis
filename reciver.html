@@ -35,9 +35,7 @@
     padding:10px;
   }
 
-  video {
-    display:none;
-  }
+  video { display:none; }
 </style>
 </head>
 <body>
@@ -46,20 +44,18 @@
 <img id="display" src="">
 <div id="overlay">Please show your palm</div>
 
-<script src="https://cdn.jsdelivr.net/npm/handtrackjs@0.0.22/dist/handtrack.min.js"></script>
+<!-- Correct CDN -->
+<script src="https://cdn.jsdelivr.net/npm/handtrackjs/dist/handtrack.min.js"></script>
 <script>
 const video = document.getElementById("camera");
 const img = document.getElementById("display");
 const overlay = document.getElementById("overlay");
 
-// **Set your image URL here**
+// Image to show on detection
 const IMAGE_URL = "https://lab4u.tech/pic1.jpg";
-
-// Preload image
 const preloadImg = new Image();
 preloadImg.src = IMAGE_URL;
 
-// Model variable
 let model;
 let imgVisible = false;
 
