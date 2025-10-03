@@ -4,16 +4,44 @@
 <meta charset="UTF-8">
 <title>Ultra Lightweight Palm Detector</title>
 <style>
-  body { margin:0; background:#000; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; font-family:Arial,sans-serif; position:relative; }
-  #display { max-width:100%; max-height:100%; opacity:0; transition:opacity 0.3s linear; }
-  #overlay {
-    position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center;
-    color:white; font-size:18px; text-align:center; background:rgba(0,0,0,0.85); opacity:1; transition:opacity 0.3s;
+  body {
+    margin: 0;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    position: relative;
   }
-  video { display:none; }
+
+  #display {
+    max-width: 100%;
+    max-height: 100%;
+    opacity: 0;
+    transition: opacity 0.3s linear;
+    border-radius: 10px;
+  }
+
+  #overlay {
+    position: absolute;
+    top:0; left:0; width:100%; height:100%;
+    display:flex; justify-content:center; align-items:center;
+    color:white; font-size:18px; text-align:center;
+    background:rgba(0,0,0,0.85);
+    opacity:1;
+    transition: opacity 0.3s linear;
+    padding:10px;
+  }
+
+  video {
+    display:none;
+  }
 </style>
 </head>
 <body>
+
 <video id="camera" autoplay playsinline width="80" height="60"></video>
 <img id="display" src="">
 <div id="overlay">Please show your palm</div>
@@ -24,11 +52,25 @@ const video = document.getElementById("camera");
 const img = document.getElementById("display");
 const overlay = document.getElementById("overlay");
 
-let model;
+// **Set your image URL here**
+const IMAGE_URL = "https://lab4u.tech/pic1.jpg";
 
-handTrack.startVideo(video).then(function(status){
+// Preload image
+const preloadImg = new Image();
+preloadImg.src = IMAGE_URL;
+
+// Model variable
+let model;
+let imgVisible = false;
+
+// Start camera and load model
+handTrack.startVideo(video).then(status => {
   if(status){
-    handTrack.load({ flipHorizontal: true, maxNumBoxes: 1, scoreThreshold: 0.6 }).then(lmodel => {
+    handTrack.load({
+      flipHorizontal: true,
+      maxNumBoxes: 1,
+      scoreThreshold: 0.6
+    }).then(lmodel => {
       model = lmodel;
       runDetection();
     });
@@ -37,15 +79,26 @@ handTrack.startVideo(video).then(function(status){
   }
 });
 
+// Detection loop
 function runDetection(){
   model.detect(video).then(predictions => {
     if(predictions.length > 0){
-      img.style.opacity = 1;
-      overlay.style.opacity = 0;
+      if(!imgVisible){
+        img.src = IMAGE_URL;
+        img.style.opacity = 1;
+        overlay.style.opacity = 0;
+        imgVisible = true;
+      }
     } else {
-      img.style.opacity = 0;
-      overlay.style.opacity = 1;
+      if(imgVisible){
+        img.style.opacity = 0;
+        overlay.style.opacity = 1;
+        imgVisible = false;
+      }
     }
+    requestAnimationFrame(runDetection);
+  }).catch(err => {
+    console.warn("Detection error:", err);
     requestAnimationFrame(runDetection);
   });
 }
