@@ -1,82 +1,114 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Ultra Lightweight Palm Detector</title>
-<style>
-  body {
-    margin: 0;
-    background: #000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    overflow: hidden;
-    font-family: Arial, sans-serif;
-    position: relative;
-  }
-
-  #display {
-    max-width: 100%;
-    max-height: 100%;
-    opacity: 0;
-    transition: opacity 0.3s linear;
-    border-radius: 10px;
-  }
-
-  #overlay {
-    position: absolute;
-    top:0; left:0; width:100%; height:100%;
-    display:flex; justify-content:center; align-items:center;
-    color:white; font-size:18px; text-align:center;
-    background:rgba(0,0,0,0.85);
-    opacity:1;
-    transition: opacity 0.3s linear;
-    padding:10px;
-  }
-
-  video { display:none; }
-</style>
+  <meta charset="UTF-8">
+  <title>Ultra Lightweight Palm Detector</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      position: relative;
+    }
+    #display {
+      max-width: 100%;
+      max-height: 100%;
+      opacity: 0;
+      transition: opacity 0.3s linear;
+      border-radius: 14px;
+    }
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 18px;
+      text-align: center;
+      background: rgba(0,0,0,0.85);
+      opacity: 1;
+      transition: opacity 0.3s linear;
+      padding: 10px;
+    }
+    video { display: none; }
+  </style>
 </head>
 <body>
+  <video id="camera" autoplay playsinline width="80" height="60"></video>
+  <img id="display" src="">
+  <div id="overlay">Please show your palm</div>
 
-<video id="camera" autoplay playsinline width="80" height="60"></video>
-<img id="display" src="">
-<div id="overlay">Please show your palm</div>
+  <!-- TensorFlow.js with CPU backend -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
 
-<!-- Correct CDN -->
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
+  <script type="module">
+    const video = document.getElementById("camera");
+    const img = document.getElementById("display");
+    const overlay = document.getElementById("overlay");
 
-<script>
-const video = document.createElement('video');
-video.width = 320;
-video.height = 240;
-video.autoplay = true;
-document.body.appendChild(video);
+    // Replace these URLs with your images
+    const mapping = {
+      "pic1": "https://lab4u.tech/pic1.jpg",
+      "pic2": "https://lab4u.tech/pic2.jpg",
+      "pic3": "https://lab4u.tech/pic3.jpg"
+    };
+    let currentCode = "pic1"; // default image
+    img.src = mapping[currentCode];
 
-async function start() {
-  await navigator.mediaDevices.getUserMedia({ video: true }).then(stream => video.srcObject = stream);
-
-  const model = handPoseDetection.SupportedModels.MediaPipeHands;
-  const detector = await handPoseDetection.createDetector(model, {
-    runtime: 'tfjs', // runs on CPU
-    maxHands: 1,
-  });
-
-  async function detect() {
-    const hands = await detector.estimateHands(video);
-    if(hands.length > 0){
-      console.log("Palm detected!", hands);
-      // Show your image here
+    async function initCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        await new Promise(resolve => video.onloadedmetadata = resolve);
+        return true;
+      } catch (err) {
+        overlay.textContent = "Camera not allowed";
+        console.error(err);
+        return false;
+      }
     }
-    requestAnimationFrame(detect);
-  }
-  detect();
-}
-start();
-</script>
 
+    async function run() {
+      // Force CPU backend
+      await tf.setBackend('cpu');
+      await tf.ready();
+
+      // Create detector
+      const model = handPoseDetection.SupportedModels.MediaPipeHands;
+      const detector = await handPoseDetection.createDetector(model, {
+        runtime: 'tfjs',
+        maxHands: 1
+      });
+
+      async function detectFrame() {
+        const hands = await detector.estimateHands(video);
+        if (hands.length > 0) {
+          img.style.opacity = 1;
+          overlay.style.opacity = 0;
+        } else {
+          img.style.opacity = 0;
+          overlay.style.opacity = 1;
+        }
+        requestAnimationFrame(detectFrame);
+      }
+
+      detectFrame();
+    }
+
+    (async () => {
+      const ok = await initCamera();
+      if (ok) run();
+    })();
+  </script>
 </body>
 </html>
