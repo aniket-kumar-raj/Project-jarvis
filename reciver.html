@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Ultra Lightweight Palm Detector</title>
+  <title>Receiver Gallery (Clean)</title>
   <style>
     body {
       margin: 0;
@@ -15,100 +15,168 @@
       font-family: Arial, sans-serif;
       position: relative;
     }
+
     #display {
       max-width: 100%;
       max-height: 100%;
-      opacity: 0;
-      transition: opacity 0.3s linear;
+      object-fit: contain;
       border-radius: 14px;
+      opacity: 0;
+      transition: opacity 0.8s ease-in-out;
     }
+
     #overlay {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
+      background: rgba(0,0,0,0.9);
       display: flex;
       justify-content: center;
       align-items: center;
       color: white;
-      font-size: 18px;
-      text-align: center;
-      background: rgba(0,0,0,0.85);
+      font-size: 22px;
       opacity: 1;
-      transition: opacity 0.3s linear;
-      padding: 10px;
+      transition: opacity 0.6s ease-in-out;
     }
-    video { display: none; }
+
+    video {
+      width: 1px;
+      height: 1px;
+      opacity: 0.01;
+      position: absolute;
+    }
   </style>
 </head>
 <body>
-  <video id="camera" autoplay playsinline width="80" height="60"></video>
+  <video id="camera" autoplay playsinline></video>
   <img id="display" src="">
-  <div id="overlay">Please show your palm</div>
+  <div id="overlay">Please show your palm in front of screen</div>
 
-  <!-- TensorFlow.js with CPU backend -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection"></script>
-
+  <!-- Firebase -->
   <script type="module">
-    const video = document.getElementById("camera");
-    const img = document.getElementById("display");
-    const overlay = document.getElementById("overlay");
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
 
-    // Replace these URLs with your images
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrZDZ_M_DC97zLxLw4hgxwm_revSjwkMA",
+      authDomain: "project-jarvis-creators.firebaseapp.com",
+      databaseURL: "https://project-jarvis-creators-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "project-jarvis-creators",
+      storageBucket: "project-jarvis-creators.appspot.com",
+      messagingSenderId: "489774215647",
+      appId: "1:489774215647:web:496a71ec5b210c6aa6d46a",
+      measurementId: "G-P6ZFBKM2RR"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Map of codes → images
     const mapping = {
       "pic1": "https://lab4u.tech/pic1.jpg",
       "pic2": "https://lab4u.tech/pic2.jpg",
       "pic3": "https://lab4u.tech/pic3.jpg"
     };
-    let currentCode = "pic1"; // default image
-    img.src = mapping[currentCode];
+    Object.values(mapping).forEach(src => { const i = new Image(); i.src = src; });
 
-    async function initCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-        await new Promise(resolve => video.onloadedmetadata = resolve);
-        return true;
-      } catch (err) {
-        overlay.textContent = "Camera not allowed";
-        console.error(err);
-        return false;
+    let latestCode = null;
+    onValue(ref(db, "gallery/selected"), snap => {
+      latestCode = snap.val();
+    });
+
+    window.mapping = mapping;
+    window.getLatestCode = () => latestCode;
+  </script>
+
+  <!-- MediaPipe -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+  <script>
+    const video = document.getElementById("camera");
+    const img = document.getElementById("display");
+    const overlay = document.getElementById("overlay");
+
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.8,
+      minTrackingConfidence: 0.8
+    });
+
+    let palmVisibleSince = null;
+    let currentCode = null;
+
+    function showImage(code) {
+      const newSrc = window.mapping[code];
+      if (!newSrc) return;
+
+      // If already showing this image → just fade overlay away
+      if (currentCode === code) {
+        img.style.opacity = 1;
+        overlay.style.opacity = 0;
+        return;
       }
-    }
 
-    async function run() {
-      // Force CPU backend
-      await tf.setBackend('cpu');
-      await tf.ready();
+      // Fade out old image
+      img.style.opacity = 0;
 
-      // Create detector
-      const model = handPoseDetection.SupportedModels.MediaPipeHands;
-      const detector = await handPoseDetection.createDetector(model, {
-        runtime: 'tfjs',
-        maxHands: 1
-      });
-
-      async function detectFrame() {
-        const hands = await detector.estimateHands(video);
-        if (hands.length > 0) {
+      setTimeout(() => {
+        img.onload = () => {
           img.style.opacity = 1;
           overlay.style.opacity = 0;
-        } else {
-          img.style.opacity = 0;
-          overlay.style.opacity = 1;
-        }
-        requestAnimationFrame(detectFrame);
-      }
-
-      detectFrame();
+        };
+        img.src = newSrc;
+        currentCode = code;
+      }, 400);
     }
 
-    (async () => {
-      const ok = await initCamera();
-      if (ok) run();
-    })();
+    function hideImage() {
+      img.style.opacity = 0;
+      overlay.style.opacity = 1;
+      overlay.textContent = "Please show your palm in front of screen";
+    }
+
+    hands.onResults(results => {
+      const palmDetected = results.multiHandLandmarks?.length > 0;
+
+      if (palmDetected) {
+        if (!palmVisibleSince) palmVisibleSince = Date.now();
+        const elapsed = Date.now() - palmVisibleSince;
+
+        if (elapsed > 2000) {
+          const code = window.getLatestCode();
+          if (code) {
+            showImage(code);
+          } else if (currentCode) {
+            showImage(currentCode); // show last image again
+          }
+          palmVisibleSince = null;
+        }
+      } else {
+        palmVisibleSince = null;
+        hideImage();
+      }
+    });
+
+    const camera = new Camera(video, {
+      onFrame: async () => {
+        try {
+          await hands.send({ image: video });
+        } catch (err) {
+          console.warn("MediaPipe error:", err);
+        }
+      },
+      width: 640,
+      height: 480
+    });
+    camera.start();
   </script>
 </body>
 </html>
