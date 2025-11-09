@@ -155,42 +155,48 @@
       let busy = false; // prevents overlapping animations
       let lastPalmState = false;
 
-      hands.onResults(results => {
-        const palmDetected = results.multiHandLandmarks?.length > 0;
+hands.onResults(results => {
+  const palmDetected = results.multiHandLandmarks?.length > 0;
 
-        if (palmDetected && !lastPalmState && !busy) {
-          lastPalmState = true;
-          busy = true;
+  if (palmDetected && !lastPalmState && !busy) {
+    lastPalmState = true;
+    busy = true;
 
-          // Show dot animation first
-          animation.style.display = "block";
-          tick.style.display = "none";
+    // Show first dot
+    animation.style.display = "block";
+    tick.style.opacity = 0;
+    tick.style.display = "none";
 
-          // After 500ms, show tick
-          setTimeout(() => {
-            animation.style.display = "none";
-            tick.style.opacity = 1;
-            tick.style.display = "block";
+    // Dot blink sequence
+    setTimeout(() => { animation.style.display = "none"; }, 1000); // hide first dot after 1s
+    setTimeout(() => { animation.style.display = "block"; }, 1000); // show second dot
+    setTimeout(() => { animation.style.display = "none"; }, 2000); // hide second dot after 1s
 
-            // Hide tick after 1s
-            setTimeout(() => {
-              tick.style.opacity = 0;
-              tick.style.display = "none";
-              busy = false;
-            }, 1000);
+    // Tick after 2s (after 2 dots)
+    setTimeout(() => {
+      tick.style.display = "block";
+      tick.style.opacity = 1;
 
-            // Send image code to Firebase
-            set(ref(db, "gallery/selected"), images[currentIndex].code);
-          }, 500);
+      // Send image code to Firebase
+      set(ref(db, "gallery/selected"), images[currentIndex].code);
 
-        } else if (!palmDetected) {
-          lastPalmState = false;
-          animation.style.display = "none";
-          tick.style.opacity = 0;
-          tick.style.display = "none";
-          busy = false;
-        }
-      });
+      // Hide tick after 1s
+      setTimeout(() => {
+        tick.style.opacity = 0;
+        tick.style.display = "none";
+        busy = false;
+      }, 1000);
+
+    }, 2000);
+
+  } else if (!palmDetected) {
+    lastPalmState = false;
+    animation.style.display = "none";
+    tick.style.opacity = 0;
+    tick.style.display = "none";
+    busy = false;
+  }
+});
 
       const camera = new Camera(video, {
         onFrame: async () => { await hands.send({ image: video }); },
