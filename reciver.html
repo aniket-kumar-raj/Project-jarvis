@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Receiver Gallery - Light Fade</title>
+<title>Receiver Gallery - Smooth Palm</title>
 <style>
   html, body {
     margin: 0;
@@ -71,14 +71,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// Map images
 const mapping = {
   "pic1": "https://lab4u.tech/pic1.jpg",
   "pic2": "https://lab4u.tech/pic2.jpg",
   "pic3": "https://lab4u.tech/pic3.jpg"
 };
-
-// Preload images
 Object.values(mapping).forEach(src => new Image().src = src);
 
 const img = document.getElementById("display");
@@ -109,23 +106,26 @@ hands.setOptions({
   minTrackingConfidence: 0.6
 });
 
-// Show image instantly when palm detected, with light fade-in
+// Show image instantly, but fade in only after image is fully loaded
 hands.onResults(results => {
   const palmDetected = results.multiHandLandmarks?.length > 0;
 
   if (palmDetected) {
     const code = window.getLatestCode();
     if (code && window.mapping[code]) {
-      window.img.style.opacity = 0;
-      window.img.src = window.mapping[code];
-      window.img.onload = () => {
-        window.img.style.opacity = 1; // fade-in
-        window.overlay.style.display = "none";
-      };
+      const newSrc = window.mapping[code];
+      if (img.src !== newSrc) { // only change if new
+        img.style.opacity = 0;
+        img.src = newSrc;
+        img.onload = () => {
+          img.style.opacity = 1; // fade in
+          overlay.style.display = "none"; // hide overlay after image loads
+        };
+      }
     }
   } else {
-    window.overlay.style.display = "flex";
-    window.img.style.opacity = 0;
+    overlay.style.display = "flex";
+    img.style.opacity = 0; // hide image if no palm
   }
 });
 
