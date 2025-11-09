@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Receiver Gallery - Smooth Palm</title>
+<title>Receiver Gallery - Palm Repeat</title>
 <style>
   html, body {
     margin: 0;
@@ -106,26 +106,31 @@ hands.setOptions({
   minTrackingConfidence: 0.6
 });
 
-// Show image instantly, but fade in only after image is fully loaded
+let lastPalmState = false;
+
+// Show image whenever palm is detected, even if same image
 hands.onResults(results => {
   const palmDetected = results.multiHandLandmarks?.length > 0;
 
   if (palmDetected) {
-    const code = window.getLatestCode();
-    if (code && window.mapping[code]) {
-      const newSrc = window.mapping[code];
-      if (img.src !== newSrc) { // only change if new
+    // Only update UI when palm is newly raised
+    if (!lastPalmState) {
+      const code = window.getLatestCode();
+      if (code && window.mapping[code]) {
+        const newSrc = window.mapping[code];
         img.style.opacity = 0;
         img.src = newSrc;
         img.onload = () => {
-          img.style.opacity = 1; // fade in
-          overlay.style.display = "none"; // hide overlay after image loads
+          img.style.opacity = 1;
+          overlay.style.display = "none";
         };
       }
     }
+    lastPalmState = true;
   } else {
+    lastPalmState = false;
     overlay.style.display = "flex";
-    img.style.opacity = 0; // hide image if no palm
+    img.style.opacity = 0;
   }
 });
 
