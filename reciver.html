@@ -2,79 +2,55 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Receiver Gallery</title>
+<title>Receiver Gallery - Instant Palm</title>
 <style>
-  body {
+  html, body {
     margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
     background: #000;
+    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-    overflow: hidden;
-    font-family: Arial, sans-serif;
   }
 
-  #display {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    border-radius: 16px;
-    box-shadow: 0 0 40px rgba(0,0,0,0.7);
-    opacity: 0;
-    transition: opacity 0.5s ease-in-out;
+  #gallery {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  #gallery img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   #overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.9);
-    color: white;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
     font-size: 22px;
-    opacity: 1;
-    transition: opacity 0.3s ease-in-out;
-    backdrop-filter: blur(6px);
-  }
-
-  #fullscreenBtn {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    background: rgba(255,255,255,0.1);
-    border: none;
-    padding: 12px 16px;
-    border-radius: 10px;
-    color: white;
-    font-size: 18px;
-    cursor: pointer;
-    transition: background 0.3s;
+    color: #fff;
+    background: rgba(0,0,0,0.6);
     z-index: 2;
   }
-  #fullscreenBtn:hover {
-    background: rgba(255,255,255,0.3);
-  }
 
-  video {
-    width: 1px;
-    height: 1px;
-    opacity: 0.01;
-    position: absolute;
-  }
+  video { display: none; }
 </style>
 </head>
 <body>
+<div id="gallery">
+  <img id="display" src="">
+  <div id="overlay">Show your palm to display image</div>
+</div>
 <video id="camera" autoplay playsinline></video>
-<img id="display" src="">
-<div id="overlay">Please show your palm in front of screen</div>
-<button id="fullscreenBtn">⛶</button>
 
-<!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
 import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-database.js";
@@ -93,12 +69,14 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// Preload images
+// Map images
 const mapping = {
   "pic1": "https://lab4u.tech/pic1.jpg",
   "pic2": "https://lab4u.tech/pic2.jpg",
   "pic3": "https://lab4u.tech/pic3.jpg"
 };
+
+// Preload images
 Object.values(mapping).forEach(src => new Image().src = src);
 
 const img = document.getElementById("display");
@@ -115,60 +93,41 @@ window.img = img;
 window.overlay = overlay;
 </script>
 
-<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
 <script>
 const video = document.getElementById("camera");
-const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+const hands = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
 
 hands.setOptions({
   maxNumHands: 1,
-  modelComplexity: 1,
-  minDetectionConfidence: 0.8,
-  minTrackingConfidence: 0.8
+  modelComplexity: 0,
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
 });
 
-function showImage(code) {
-  const newSrc = window.mapping[code];
-  if (!newSrc || window.img.src.includes(newSrc)) return;
-
-  window.img.style.opacity = 0;
-  setTimeout(() => {
-    window.img.src = newSrc;
-    window.img.onload = () => {
-      window.img.style.opacity = 1;
-      window.overlay.style.opacity = 0;
-    };
-  }, 100); // instant-ish
-}
-
-function hideImage() {
-  window.img.style.opacity = 0;
-  window.overlay.style.opacity = 1;
-  window.overlay.textContent = "Please show your palm in front of screen";
-}
-
+// Show image instantly when palm detected
 hands.onResults(results => {
   const palmDetected = results.multiHandLandmarks?.length > 0;
-
   if (palmDetected) {
     const code = window.getLatestCode();
-    if (code && window.mapping[code]) showImage(code);
+    if (code && window.mapping[code]) {
+      window.img.src = window.mapping[code];
+      window.overlay.style.display = "none";
+    }
   } else {
-    hideImage();
+    window.overlay.style.display = "flex";
+    window.img.src = "";
   }
 });
 
-const camera = new Camera(video, { onFrame: async () => { await hands.send({ image: video }); }, width: 640, height: 480 });
-camera.start();
-
-// Fullscreen button
-document.getElementById("fullscreenBtn").addEventListener("click", () => {
-  if (!document.fullscreenElement) document.body.requestFullscreen().catch(console.log);
-  else document.exitFullscreen();
+const camera = new Camera(video, {
+  onFrame: async () => { await hands.send({ image: video }); },
+  width: 320,
+  height: 240
 });
+camera.start();
 </script>
 </body>
 </html>
