@@ -49,13 +49,8 @@
       height: 30px;
       background: #4caf50;
       border-radius: 50%;
-      animation: blink 0.8s step-start infinite;
       display: none;
       z-index: 10;
-    }
-
-    @keyframes blink {
-      50% { opacity: 0; }
     }
 
     /* Tick mark */
@@ -68,8 +63,21 @@
       color: #4caf50;
       display: none;
       z-index: 10;
-      opacity: 0;
-      transition: opacity 0.3s ease-in-out;
+    }
+
+    /* Swipe button */
+    #swipeBtn {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      padding: 12px 16px;
+      font-size: 18px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      border: none;
+      cursor: pointer;
+      z-index: 20;
     }
 
     video {
@@ -81,6 +89,7 @@
   <div id="gallery"></div>
   <div id="animation"></div>
   <div id="tick">✔</div>
+  <button id="swipeBtn">Swipe →</button>
   <video id="camera" autoplay playsinline></video>
 
   <!-- Firebase -->
@@ -102,7 +111,6 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // Gallery images
     const images = [
       { code: "pic1", src: "https://lab4u.tech/pic1.jpg" },
       { code: "pic2", src: "https://lab4u.tech/pic2.jpg" },
@@ -111,8 +119,9 @@
 
     let currentIndex = 0;
     const gallery = document.getElementById("gallery");
+    const animation = document.getElementById("animation");
+    const tick = document.getElementById("tick");
 
-    // Preload images and render slides
     images.forEach(img => {
       const imageTag = new Image();
       imageTag.src = img.src;
@@ -128,75 +137,66 @@
     }
     updateGallery();
 
-    // Swipe navigation
+    // Touch swipe
     let startX = 0;
     gallery.addEventListener("touchstart", e => startX = e.touches[0].clientX);
     gallery.addEventListener("touchend", e => {
-      let endX = e.changedTouches[0].clientX;
+      const endX = e.changedTouches[0].clientX;
       if (endX < startX - 50) currentIndex = Math.min(images.length - 1, currentIndex + 1);
       if (endX > startX + 50) currentIndex = Math.max(0, currentIndex - 1);
       updateGallery();
     });
 
+    // Swipe button for fallback
+    document.getElementById("swipeBtn").addEventListener("click", () => {
+      currentIndex = (currentIndex + 1) % images.length;
+      updateGallery();
+
+      // Trigger double-dot → tick animation
+      animation.style.display = "block";
+      tick.style.display = "none";
+
+      setTimeout(() => { animation.style.display = "none"; animation.style.display = "block"; }, 1000);
+      setTimeout(() => { animation.style.display = "none"; tick.style.display = "block"; }, 2000);
+      setTimeout(() => { tick.style.display = "none"; }, 3000);
+
+      set(ref(db, "gallery/selected"), images[currentIndex].code);
+    });
+
     // Palm detection
     window.startPalmDetection = function() {
       const video = document.getElementById("camera");
-      const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+      const hands = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+      hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
 
-      hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 0,
-        minDetectionConfidence: 0.6,
-        minTrackingConfidence: 0.6
-      });
-
-      const animation = document.getElementById("animation");
-      const tick = document.getElementById("tick");
-      let busy = false; // prevents overlapping animations
       let lastPalmState = false;
+      let busy = false;
 
-hands.onResults(results => {
-  const palmDetected = results.multiHandLandmarks?.length > 0;
+      hands.onResults(results => {
+        const palmDetected = results.multiHandLandmarks?.length > 0;
 
-  if (palmDetected && !lastPalmState && !busy) {
-    lastPalmState = true;
-    busy = true;
+        if (palmDetected && !lastPalmState && !busy) {
+          lastPalmState = true;
+          busy = true;
 
-    // Show first dot
-    animation.style.display = "block";
-    tick.style.opacity = 0;
-    tick.style.display = "none";
+          // Double-dot → tick animation
+          animation.style.display = "block";
+          tick.style.display = "none";
 
-    // Dot blink sequence
-    setTimeout(() => { animation.style.display = "none"; }, 1000); // hide first dot after 1s
-    setTimeout(() => { animation.style.display = "block"; }, 1000); // show second dot
-    setTimeout(() => { animation.style.display = "none"; }, 2000); // hide second dot after 1s
+          setTimeout(() => { animation.style.display = "none"; animation.style.display = "block"; }, 1000);
+          setTimeout(() => { animation.style.display = "none"; tick.style.display = "block"; }, 2000);
+          setTimeout(() => { tick.style.display = "none"; busy = false; }, 3000);
 
-    // Tick after 2s (after 2 dots)
-    setTimeout(() => {
-      tick.style.display = "block";
-      tick.style.opacity = 1;
+          // Update Firebase
+          set(ref(db, "gallery/selected"), images[currentIndex].code);
 
-      // Send image code to Firebase
-      set(ref(db, "gallery/selected"), images[currentIndex].code);
-
-      // Hide tick after 1s
-      setTimeout(() => {
-        tick.style.opacity = 0;
-        tick.style.display = "none";
-        busy = false;
-      }, 1000);
-
-    }, 2000);
-
-  } else if (!palmDetected) {
-    lastPalmState = false;
-    animation.style.display = "none";
-    tick.style.opacity = 0;
-    tick.style.display = "none";
-    busy = false;
-  }
-});
+        } else if (!palmDetected) {
+          lastPalmState = false;
+          animation.style.display = "none";
+          tick.style.display = "none";
+          busy = false;
+        }
+      });
 
       const camera = new Camera(video, {
         onFrame: async () => { await hands.send({ image: video }); },
@@ -212,9 +212,7 @@ hands.onResults(results => {
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
   <script>
-    window.onload = () => {
-      window.startPalmDetection();
-    };
+    window.onload = () => { window.startPalmDetection(); };
   </script>
 </body>
 </html>
